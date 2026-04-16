@@ -1,10 +1,38 @@
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const config = require("../config");
 const logger = require("../logger");
 const { bootstrapProject } = require("../services/bootstrap-service");
 const { normalizeTargets } = require("../core/target-normalizer");
 const { fetchLiveRoomStateViaApi } = require("../services/live-room-page-service");
 const { insertLiveMessage } = require("../db/repositories/message-repository");
+const pidFile = path.join(config.paths.runtimeDir, "message-worker.pid");
+
+function writePidFile() {
+  try {
+    fs.writeFileSync(pidFile, String(process.pid), "utf8");
+  } catch (error) {
+    logger.warn("消息 worker 写入 PID 文件失败", {
+      error: error.message
+    });
+  }
+}
+
+function cleanupPidFile() {
+  try {
+    if (fs.existsSync(pidFile)) {
+      const current = fs.readFileSync(pidFile, "utf8").trim();
+      if (String(process.pid) === current) {
+        fs.unlinkSync(pidFile);
+      }
+    }
+  } catch (error) {
+    logger.warn("消息 worker 清理 PID 文件失败", {
+      error: error.message
+    });
+  }
+}
 
 function pickMessageTargets(targets) {
   return normalizeTargets(targets)
@@ -209,6 +237,17 @@ async function runSingleCycle(context, seenCache, stateCache) {
 }
 
 async function startLoop() {
+  writePidFile();
+  process.on("exit", cleanupPidFile);
+  process.on("SIGINT", () => {
+    cleanupPidFile();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    cleanupPidFile();
+    process.exit(0);
+  });
+
   const context = bootstrapProject();
   const seenCache = createSeenCache();
   const stateCache = new Map();
