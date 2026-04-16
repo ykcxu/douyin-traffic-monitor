@@ -1,0 +1,24 @@
+[
+  {
+    "platform": "抖音",
+    "category": "内部",
+    "department": "示例学科",
+    "accountType": "IP号",
+    "accountName": "示例直播账号",
+    "accountUid": "example-uid",
+    "liveRoomUrl": "https://live.douyin.com/example",
+    "profileUrl": "https://www.douyin.com/user/example",
+    "monitoringRequirements": "示例监控需求"
+  },
+  {
+    "platform": "抖音",
+    "category": "竞品",
+    "department": "示例学科",
+    "accountType": "组织号",
+    "accountName": "示例竞品账号",
+    "accountUid": "example-competitor-uid",
+    "liveRoomUrl": "",
+    "profileUrl": "https://www.douyin.com/user/example-competitor",
+    "monitoringRequirements": "示例竞品对比需求"
+  }
+]
