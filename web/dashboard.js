@@ -324,8 +324,17 @@ async function triggerAuthRecover() {
   }
 }
 
-function openChallengePage() {
-  window.open(challengePageUrl, "_blank", "noopener");
+async function openChallengePage() {
+  const timeEl = document.getElementById("refresh-time");
+  try {
+    const payload = await getJson("/api/auth/challenge-url");
+    const url = payload?.challengePageUrl || challengePageUrl || "https://live.douyin.com/";
+    window.open(url, "_blank", "noopener");
+    timeEl.textContent = `已打开验证码页面：${url}`;
+  } catch (error) {
+    window.open(challengePageUrl || "https://live.douyin.com/", "_blank", "noopener");
+    timeEl.textContent = `已打开默认验证码页面（自动挑选失败）：${error.message}`;
+  }
 }
 
 for (const tab of document.querySelectorAll(".tab")) {

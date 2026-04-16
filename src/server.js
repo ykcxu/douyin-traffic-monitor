@@ -73,15 +73,45 @@ function createServerContext() {
   const boot = bootstrapProject();
   const baselineDepartment = buildDepartmentComparison(boot.targets);
   const baselineCompetitor = buildCompetitorComparison(boot.targets);
-  const challengePageUrl =
-    boot.targets.find((item) => item.liveRoomUrl && String(item.liveRoomUrl).trim())?.liveRoomUrl ||
-    "https://live.douyin.com/";
+  const challengeCandidates = boot.targets
+    .map((item) => String(item.liveRoomUrl || "").trim())
+    .filter(Boolean);
+  challengeCandidates.push("https://live.douyin.com/");
+
   return {
     ...boot,
     baselineDepartment,
     baselineCompetitor,
-    challengePageUrl
+    challengeCandidates
   };
+}
+
+async function pickChallengeUrl(context) {
+  const candidates = context.challengeCandidates || ["https://live.douyin.com/"];
+  const ua =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
+
+  for (const url of candidates.slice(0, 10)) {
+    try {
+      if (url === "https://live.douyin.com/") {
+        return url;
+      }
+      const response = await fetch(url, {
+        headers: {
+          "user-agent": ua,
+          referer: "https://live.douyin.com/"
+        }
+      });
+      const html = await response.text();
+      if (!html.includes("直播已结束")) {
+        return url;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return "https://live.douyin.com/";
 }
 
 function createAppServer(context) {
@@ -173,12 +203,13 @@ function createAppServer(context) {
       const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const restrictionStats = getRecentRestrictionStats(context.db, windowStart);
       const workerStatus = isMessageWorkerRunning();
+      const challengePageUrl = await pickChallengeUrl(context);
       writeJson(res, 200, {
         ...payload,
         recentWindowStart: windowStart,
         restrictionStats,
         messageWorker: workerStatus,
-        challengePageUrl: context.challengePageUrl
+        challengePageUrl
       });
       return;
     }
@@ -190,6 +221,14 @@ function createAppServer(context) {
         ok: true,
         diagnostics,
         recover
+      });
+      return;
+    }
+
+    if (path === "/api/auth/challenge-url") {
+      const challengePageUrl = await pickChallengeUrl(context);
+      writeJson(res, 200, {
+        challengePageUrl
       });
       return;
     }
