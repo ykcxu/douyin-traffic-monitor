@@ -378,6 +378,10 @@ th {
   font-size: 13px;
 }
 
+.focus-room-checklist-horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 .keyword-room-title {
   font-weight: 700;
   color: #204c92;

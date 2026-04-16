@@ -49,7 +49,8 @@ const focusState = {
   targets: [],
   config: null,
   status: null,
-  transcripts: []
+  transcripts: [],
+  draftMonitored: []
 };
 
 function fmtTime(value) {
@@ -575,11 +576,14 @@ function renderDedicatedRooms(payload) {
 
 function renderFocusTargets() {
   const checklist = document.getElementById("focus-room-checklist");
-  const displaySelect = document.getElementById("focus-display-select");
+  const displaySelect = document.getElementById("focus-transcript-select");
   if (!checklist || !displaySelect) {
     return;
   }
-  const monitored = new Set((focusState.config?.monitoredLiveWebRids || []).map((item) => String(item)));
+  const serverMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
+  const draft = Array.isArray(focusState.draftMonitored) ? focusState.draftMonitored : [];
+  const activeMonitored = draft.length ? draft : serverMonitored;
+  const monitored = new Set(activeMonitored);
 
   checklist.innerHTML = "";
   for (const item of focusState.targets || []) {
@@ -596,7 +600,7 @@ function renderFocusTargets() {
 
   const selected = String(focusState.config?.selectedLiveWebRid || "");
   displaySelect.innerHTML = `<option value="">请选择</option>`;
-  for (const rid of monitored) {
+  for (const rid of new Set(serverMonitored)) {
     const item = (focusState.targets || []).find((t) => t.liveWebRid === rid);
     if (!item) {
       continue;
@@ -679,6 +683,9 @@ async function refreshFocusPanel() {
     focusState.targets = targets?.rows || [];
     focusState.config = status?.config || null;
     focusState.status = status?.state || null;
+    if (!Array.isArray(focusState.draftMonitored) || !focusState.draftMonitored.length) {
+      focusState.draftMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
+    }
     const currentRid =
       String(focusState.config?.selectedLiveWebRid || "").trim() ||
       String((focusState.config?.monitoredLiveWebRids || [])[0] || "").trim();
@@ -1123,6 +1130,11 @@ document.getElementById("log-message-type-filter").addEventListener("change", (e
   logMessageState.typeFilter = event.target.value || "chat";
   renderLogMessages({ rows: logMessageState.rows || [] });
 });
+document.getElementById("focus-room-checklist").addEventListener("change", () => {
+  focusState.draftMonitored = [...document.querySelectorAll(".focus-room-checkbox:checked")]
+    .map((el) => String(el.value || "").trim())
+    .filter(Boolean);
+});
 document.getElementById("focus-start-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("focus-status");
   const checked = [...document.querySelectorAll(".focus-room-checkbox:checked")].map((el) => String(el.value || "").trim()).filter(Boolean);
@@ -1140,6 +1152,7 @@ document.getElementById("focus-start-btn").addEventListener("click", async () =>
       liveWebRids: checked,
       enabled: true
     });
+    focusState.draftMonitored = [...checked];
     await refreshFocusPanel();
     if (statusEl) {
       statusEl.textContent = `已开始监控 ${checked.length} 个直播间。`;
@@ -1160,6 +1173,7 @@ document.getElementById("focus-stop-btn").addEventListener("click", async () => 
       liveWebRids: focusState.config?.monitoredLiveWebRids || [],
       enabled: false
     });
+    focusState.draftMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
     await refreshFocusPanel();
     if (statusEl) {
       statusEl.textContent = "重点话术监控已暂停。";
@@ -1170,7 +1184,7 @@ document.getElementById("focus-stop-btn").addEventListener("click", async () => 
     }
   }
 });
-document.getElementById("focus-display-select").addEventListener("change", async (event) => {
+document.getElementById("focus-transcript-select").addEventListener("change", async (event) => {
   const liveWebRid = String(event.target.value || "").trim();
   if (!liveWebRid) {
     return;
