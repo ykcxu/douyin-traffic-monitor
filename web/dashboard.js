@@ -22,6 +22,7 @@ async function postJson(path, body = {}) {
 }
 
 let refreshTimer = null;
+let refreshKickoffTimer = null;
 let challengePageUrl = "https://live.douyin.com/";
 const trendPalette = ["#0a4ad6", "#00a76f", "#ff7a00", "#8a52ff", "#ff4d6d", "#00a6ff", "#7f8c3a", "#b85c38"];
 const trendState = {
@@ -529,6 +530,10 @@ function renderInsights(payload) {
 }
 
 function resetAutoRefresh() {
+  if (refreshKickoffTimer) {
+    clearTimeout(refreshKickoffTimer);
+    refreshKickoffTimer = null;
+  }
   if (refreshTimer) {
     clearInterval(refreshTimer);
     refreshTimer = null;
@@ -540,7 +545,11 @@ function resetAutoRefresh() {
   }
 
   const interval = Number(document.getElementById("refresh-interval").value || "30000");
-  refreshTimer = setInterval(refresh, interval);
+  const delay = interval - (Date.now() % interval);
+  refreshKickoffTimer = setTimeout(() => {
+    refresh();
+    refreshTimer = setInterval(refresh, interval);
+  }, delay);
 }
 
 async function refresh() {

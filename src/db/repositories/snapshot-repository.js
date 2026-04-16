@@ -174,6 +174,24 @@ function listDepartmentLiveAveragesByBucket(db, sinceIso, bucketSeconds = 60) {
     .all(safeBucketSeconds, safeBucketSeconds, sinceIso);
 }
 
+function listSnapshotsForTrend(db, sinceIso) {
+  return db
+    .prepare(
+      `
+      SELECT
+        account_name AS accountName,
+        department,
+        sample_time AS sampleTime,
+        is_live AS isLive,
+        online_count AS onlineCount
+      FROM room_snapshots
+      WHERE sample_time >= ?
+      ORDER BY sample_time ASC, id ASC
+    `
+    )
+    .all(sinceIso);
+}
+
 module.exports = {
   insertRoomSnapshot,
   listRecentRoomSnapshots,
@@ -181,6 +199,7 @@ module.exports = {
   listLatestSnapshotByAccount,
   getRecentRestrictionStats,
   listDepartmentLiveAveragesByBucket,
+  listSnapshotsForTrend,
   summarizeByDepartmentFromSnapshots,
   summarizeInternalVsCompetitorFromSnapshots
 };
