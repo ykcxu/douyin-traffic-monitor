@@ -111,6 +111,7 @@ npm test
 - 本地 API 对比接口（学科对比、内部 vs 竞品）
 - 循环采样 worker
 - 消息流监听 worker（入库 `live_messages`）
+- 无 Cookie 派生消息流（由采样差分自动生成）
 
 ## API 参考
 
@@ -120,6 +121,12 @@ npm test
 - `GET /api/compare/departments`
 - `GET /api/compare/internal-vs-competitor`
 - `GET /api/messages/recent?limit=50`
+
+## 无 Cookie 模式说明
+
+- 未配置 `DY_LIVE_COOKIES` 时，`worker:messages` 不会启动（保护行为）
+- 这时仍可通过 `worker:live` 产出派生消息（在线人数变化、点赞变化、开播状态变化）
+- 看板和 `/api/messages/recent` 会优先显示这些派生消息，保证分析链路不断
 
 ## 数据安全
 

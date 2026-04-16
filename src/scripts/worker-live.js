@@ -2,6 +2,42 @@ const config = require("../config");
 const logger = require("../logger");
 const { bootstrapProject } = require("../services/bootstrap-service");
 const { sampleLiveTargets } = require("../services/live-sample-service");
+const { insertLiveMessage } = require("../db/repositories/message-repository");
+const { listRecentSnapshotsByAccountName } = require("../db/repositories/snapshot-repository");
+const { buildDerivedMessagesFromSnapshots } = require("../services/derived-message-service");
+
+function writeDerivedMessages(context, result) {
+  if (result.status !== "ok") {
+    return 0;
+  }
+
+  const snapshots = listRecentSnapshotsByAccountName(context.db, result.target.accountName, 2);
+  if (snapshots.length < 2) {
+    return 0;
+  }
+
+  const currentSnapshot = snapshots[0];
+  const previousSnapshot = snapshots[1];
+  const derivedMessages = buildDerivedMessagesFromSnapshots(result.target, previousSnapshot, currentSnapshot);
+
+  for (const item of derivedMessages) {
+    insertLiveMessage(context.db, {
+      messageId: null,
+      roomId: item.roomId,
+      accountUid: item.accountUid,
+      eventTime: item.eventTime,
+      messageType: item.messageType,
+      userId: null,
+      userName: result.target.accountName,
+      content: item.content,
+      giftName: null,
+      giftCount: null,
+      rawPayload: item.rawPayload
+    });
+  }
+
+  return derivedMessages.length;
+}
 
 async function runSingleCycle(context) {
   const results = await sampleLiveTargets(context.db, context.targets, {
@@ -9,10 +45,12 @@ async function runSingleCycle(context) {
   });
   const okCount = results.filter((item) => item.status === "ok").length;
   const errorCount = results.filter((item) => item.status === "error").length;
+  const derivedCount = results.reduce((acc, item) => acc + writeDerivedMessages(context, item), 0);
   logger.info("直播采样轮次完成", {
     total: results.length,
     ok: okCount,
-    error: errorCount
+    error: errorCount,
+    derivedMessages: derivedCount
   });
 }
 

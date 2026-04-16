@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>抖音流量监控看板</title>
+    <link rel="stylesheet" href="/web/dashboard.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>抖音流量监控看板</h1>
+        <p id="refresh-time">数据刷新中...</p>
+      </header>
+
+      <section class="grid top-grid">
+        <article class="card metric">
+          <h2>监控账号总数</h2>
+          <p id="metric-targets">-</p>
+        </article>
+        <article class="card metric">
+          <h2>已采样直播间</h2>
+          <p id="metric-sampled">-</p>
+        </article>
+        <article class="card metric">
+          <h2>消息总量（最近）</h2>
+          <p id="metric-messages">-</p>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>学科对比</h2>
+          <div class="table-wrap">
+            <table id="department-table">
+              <thead>
+                <tr>
+                  <th>学科</th>
+                  <th>目标数</th>
+                  <th>已采样</th>
+                  <th>在播</th>
+                  <th>平均在线</th>
+                  <th>峰值在线</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>内部 vs 竞品</h2>
+          <div class="table-wrap">
+            <table id="category-table">
+              <thead>
+                <tr>
+                  <th>分类</th>
+                  <th>目标账号</th>
+                  <th>目标直播间</th>
+                  <th>已采样</th>
+                  <th>在播</th>
+                  <th>平均在线</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>最近采样</h2>
+          <div class="table-wrap">
+            <table id="snapshot-table">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>账号</th>
+                  <th>学科</th>
+                  <th>在播</th>
+                  <th>在线</th>
+                  <th>点赞</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>最近消息</h2>
+          <ul id="message-list" class="message-list"></ul>
+        </article>
+      </section>
+    </main>
+    <script src="/web/dashboard.js"></script>
+  </body>
+  </html>

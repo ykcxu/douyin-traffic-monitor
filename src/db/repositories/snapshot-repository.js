@@ -56,6 +56,28 @@ function listRecentRoomSnapshots(db, limit = 10) {
     .all(limit);
 }
 
+function listRecentSnapshotsByAccountName(db, accountName, limit = 2) {
+  return db
+    .prepare(`
+      SELECT
+        room_id AS roomId,
+        account_uid AS accountUid,
+        account_name AS accountName,
+        category,
+        department,
+        sample_time AS sampleTime,
+        is_live AS isLive,
+        online_count AS onlineCount,
+        like_count AS likeCount,
+        raw_payload AS rawPayload
+      FROM room_snapshots
+      WHERE account_name = ?
+      ORDER BY id DESC
+      LIMIT ?
+    `)
+    .all(accountName, limit);
+}
+
 function listLatestSnapshotByAccount(db) {
   return db
     .prepare(`
@@ -136,6 +158,7 @@ function summarizeInternalVsCompetitorFromSnapshots(db) {
 module.exports = {
   insertRoomSnapshot,
   listRecentRoomSnapshots,
+  listRecentSnapshotsByAccountName,
   listLatestSnapshotByAccount,
   summarizeByDepartmentFromSnapshots,
   summarizeInternalVsCompetitorFromSnapshots
