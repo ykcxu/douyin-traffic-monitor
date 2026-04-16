@@ -539,7 +539,7 @@ function resetAutoRefresh() {
     return;
   }
 
-  const interval = Number(document.getElementById("refresh-interval").value || "8000");
+  const interval = Number(document.getElementById("refresh-interval").value || "30000");
   refreshTimer = setInterval(refresh, interval);
 }
 
@@ -554,7 +554,7 @@ async function refresh() {
       "/api/logs/recent?limit=100",
       "/api/insights/daily",
       "/api/auth/status",
-      "/api/charts/department-live-avg?minutes=30&bucketSeconds=60"
+      "/api/charts/department-live-avg?minutes=30&bucketSeconds=30"
     ];
     const result = await Promise.allSettled(endpoints.map((item) => getJson(item)));
     const pick = (index, fallback) => (result[index]?.status === "fulfilled" ? result[index].value : fallback);

@@ -124,7 +124,56 @@ async function sampleLiveTargets(db, targets, options = {}) {
   return results;
 }
 
+function pickRoundRobinTargetsByDepartment(targets, departmentCursorState = {}) {
+  const grouped = new Map();
+  for (const target of normalizeTargets(targets).filter((item) => item.liveWebRid)) {
+    const department = String(target.department || "未分组").trim() || "未分组";
+    if (!grouped.has(department)) {
+      grouped.set(department, []);
+    }
+    grouped.get(department).push(target);
+  }
+
+  const selected = [];
+  for (const department of Array.from(grouped.keys()).sort()) {
+    const list = grouped.get(department);
+    if (!list || list.length === 0) {
+      continue;
+    }
+    const cursor = Number(departmentCursorState[department] || 0);
+    const index = ((cursor % list.length) + list.length) % list.length;
+    selected.push(list[index]);
+    departmentCursorState[department] = (index + 1) % list.length;
+  }
+
+  return selected;
+}
+
+async function sampleLiveTargetsByDepartment(db, targets, departmentCursorState = {}) {
+  const selectedTargets = pickRoundRobinTargetsByDepartment(targets, departmentCursorState);
+  const results = [];
+  for (const target of selectedTargets) {
+    try {
+      const result = await sampleSingleLiveTarget(db, target);
+      results.push(result);
+    } catch (error) {
+      logger.error("直播间采样失败", {
+        accountName: target.accountName,
+        liveWebRid: target.liveWebRid,
+        error: error.message
+      });
+      results.push({
+        status: "error",
+        target,
+        error: error.message
+      });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   sampleSingleLiveTarget,
-  sampleLiveTargets
+  sampleLiveTargets,
+  sampleLiveTargetsByDepartment
 };
