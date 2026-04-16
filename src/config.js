@@ -18,7 +18,7 @@ module.exports = {
     env: process.env.NODE_ENV || "development"
   },
   server: {
-    host: process.env.HOST || "127.0.0.1",
+    host: process.env.HOST || "0.0.0.0",
     port: readNumber("PORT", 3000)
   },
   paths: {
