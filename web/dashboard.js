@@ -574,41 +574,62 @@ function renderDedicatedRooms(payload) {
 }
 
 function renderFocusTargets() {
-  const select = document.getElementById("focus-room-select");
-  if (!select) {
+  const checklist = document.getElementById("focus-room-checklist");
+  const displaySelect = document.getElementById("focus-display-select");
+  if (!checklist || !displaySelect) {
     return;
   }
-  const prev = select.value;
-  select.innerHTML = `<option value="">请选择直播间</option>`;
+  const monitored = new Set((focusState.config?.monitoredLiveWebRids || []).map((item) => String(item)));
+
+  checklist.innerHTML = "";
   for (const item of focusState.targets || []) {
-    const option = document.createElement("option");
-    option.value = item.liveWebRid;
-    option.textContent = `${item.accountName}（${item.department || "未分组"}）`;
-    select.appendChild(option);
+    const row = document.createElement("div");
+    row.className = "keyword-room-item";
+    row.innerHTML = `
+      <label class="focus-check-item">
+        <input type="checkbox" class="focus-room-checkbox" value="${escapeHtml(item.liveWebRid)}" ${monitored.has(item.liveWebRid) ? "checked" : ""} />
+        <span>${escapeHtml(item.accountName)}（${escapeHtml(item.department || "未分组")}）</span>
+      </label>
+    `;
+    checklist.appendChild(row);
   }
-  const selected = focusState.config?.liveWebRid || prev;
+
+  const selected = String(focusState.config?.selectedLiveWebRid || "");
+  displaySelect.innerHTML = `<option value="">请选择</option>`;
+  for (const rid of monitored) {
+    const item = (focusState.targets || []).find((t) => t.liveWebRid === rid);
+    if (!item) {
+      continue;
+    }
+    const option = document.createElement("option");
+    option.value = rid;
+    option.textContent = `${item.accountName}（${item.department || "未分组"}）`;
+    displaySelect.appendChild(option);
+  }
   if (selected) {
-    select.value = selected;
+    displaySelect.value = selected;
   }
 }
 
 function renderFocusStatus() {
   const statusEl = document.getElementById("focus-status");
-  const toggleBtn = document.getElementById("focus-toggle-btn");
-  if (!statusEl || !toggleBtn) {
+  if (!statusEl) {
     return;
   }
   const conf = focusState.config || {};
   const st = focusState.status || {};
-  const enabled = Boolean(conf.enabled);
-  toggleBtn.textContent = enabled ? "暂停监控" : "开始监控";
-  const roomName = conf.accountName || conf.liveWebRid || "未选择";
+  const selectedRid = conf.selectedLiveWebRid || "";
+  const monitoredCount = (conf.monitoredLiveWebRids || []).length;
+  const selectedRoom = (focusState.targets || []).find((item) => item.liveWebRid === selectedRid);
+  const selectedState = (st.monitoredRooms || []).find((item) => item.liveWebRid === selectedRid);
   statusEl.innerHTML = `
-    <div>当前房间：${roomName}</div>
-    <div>监控开关：${enabled ? "已开启" : "已关闭"}</div>
-    <div>运行状态：${st.status || "unknown"}</div>
+    <div>监控房间数：${monitoredCount}</div>
+    <div>监控开关：${conf.enabled ? "已开启" : "已关闭"}</div>
+    <div>当前展示：${selectedRoom ? selectedRoom.accountName : "未选择"}</div>
+    <div>当前状态：${selectedState?.status?.status || "idle"}</div>
+    <div>文档路径：${selectedState?.transcriptFile || "-"}</div>
+    <div>音频目录：${selectedState?.audioDir || "-"}</div>
     <div>最近更新时间：${fmtTime(st.updatedAt || conf.updatedAt || new Date().toISOString())}</div>
-    <div>说明：该功能会抓取直播音频并转写，转写结果存在延迟。</div>
   `;
 }
 
@@ -651,15 +672,22 @@ function renderFocusTranscripts() {
 
 async function refreshFocusPanel() {
   try {
-    const [targets, status, transcripts] = await Promise.all([
+    const [targets, status] = await Promise.all([
       getJson("/api/focus/targets"),
-      getJson("/api/focus/status"),
-      getJson("/api/focus/transcripts?limit=120")
+      getJson("/api/focus/status")
     ]);
     focusState.targets = targets?.rows || [];
     focusState.config = status?.config || null;
     focusState.status = status?.state || null;
-    focusState.transcripts = transcripts?.rows || [];
+    const currentRid =
+      String(focusState.config?.selectedLiveWebRid || "").trim() ||
+      String((focusState.config?.monitoredLiveWebRids || [])[0] || "").trim();
+    if (currentRid) {
+      const transcripts = await getJson(`/api/focus/transcripts?limit=120&liveWebRid=${encodeURIComponent(currentRid)}`);
+      focusState.transcripts = transcripts?.rows || [];
+    } else {
+      focusState.transcripts = [];
+    }
     renderFocusTargets();
     renderFocusStatus();
     renderFocusTranscripts();
@@ -1095,58 +1123,67 @@ document.getElementById("log-message-type-filter").addEventListener("change", (e
   logMessageState.typeFilter = event.target.value || "chat";
   renderLogMessages({ rows: logMessageState.rows || [] });
 });
-document.getElementById("focus-select-btn").addEventListener("click", async () => {
-  const select = document.getElementById("focus-room-select");
+document.getElementById("focus-start-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("focus-status");
-  let liveWebRid = String(select?.value || "").trim();
-  if (!liveWebRid) {
-    liveWebRid =
-      String(focusState?.config?.liveWebRid || "").trim() ||
-      String(focusState?.targets?.[0]?.liveWebRid || "").trim();
-    if (select && liveWebRid) {
-      select.value = liveWebRid;
-    }
-  }
-  if (!liveWebRid) {
+  const checked = [...document.querySelectorAll(".focus-room-checkbox:checked")].map((el) => String(el.value || "").trim()).filter(Boolean);
+  if (!checked.length) {
     if (statusEl) {
-      statusEl.textContent = "请先选择一个直播间，再点击“设为重点监控”。";
+      statusEl.textContent = "请先勾选至少一个直播间，再点击“开始监控”。";
     }
     return;
   }
   try {
     if (statusEl) {
-      statusEl.textContent = "正在设置重点监控直播间...";
+      statusEl.textContent = "正在启动重点直播间监控...";
     }
-    await postJson("/api/focus/select", {
-      liveWebRid
+    await postJson("/api/focus/monitor-set", {
+      liveWebRids: checked,
+      enabled: true
     });
     await refreshFocusPanel();
     if (statusEl) {
-      statusEl.textContent = `已设置重点监控：${focusState?.config?.accountName || liveWebRid}`;
+      statusEl.textContent = `已开始监控 ${checked.length} 个直播间。`;
     }
   } catch (error) {
     if (statusEl) {
-      statusEl.textContent = `设置重点直播间失败：${error.message}`;
+      statusEl.textContent = `启动重点监控失败：${error.message}`;
     }
   }
 });
-document.getElementById("focus-toggle-btn").addEventListener("click", async () => {
-  const enabledNow = Boolean(focusState.config?.enabled);
+document.getElementById("focus-stop-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("focus-status");
   try {
     if (statusEl) {
-      statusEl.textContent = enabledNow ? "正在暂停重点话术监控..." : "正在启动重点话术监控...";
+      statusEl.textContent = "正在停止重点监控...";
     }
-    await postJson("/api/focus/enable", {
-      enabled: !enabledNow
+    await postJson("/api/focus/monitor-set", {
+      liveWebRids: focusState.config?.monitoredLiveWebRids || [],
+      enabled: false
     });
     await refreshFocusPanel();
     if (statusEl) {
-      statusEl.textContent = !enabledNow ? "重点话术监控已开启。" : "重点话术监控已暂停。";
+      statusEl.textContent = "重点话术监控已暂停。";
     }
   } catch (error) {
     if (statusEl) {
       statusEl.textContent = `切换重点监控失败：${error.message}`;
+    }
+  }
+});
+document.getElementById("focus-display-select").addEventListener("change", async (event) => {
+  const liveWebRid = String(event.target.value || "").trim();
+  if (!liveWebRid) {
+    return;
+  }
+  try {
+    await postJson("/api/focus/display-select", {
+      liveWebRid
+    });
+    await refreshFocusPanel();
+  } catch (error) {
+    const statusEl = document.getElementById("focus-status");
+    if (statusEl) {
+      statusEl.textContent = `切换展示直播间失败：${error.message}`;
     }
   }
 });

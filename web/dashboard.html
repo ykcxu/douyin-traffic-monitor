@@ -203,14 +203,15 @@
           <article class="card">
             <h2>重点直播间话术监控</h2>
             <div class="log-flow-filters" style="margin-bottom:8px;">
-              <label>直播间
-                <select id="focus-room-select">
-                  <option value="">请选择直播间</option>
+              <label>展示直播间
+                <select id="focus-display-select">
+                  <option value="">请选择</option>
                 </select>
               </label>
-              <button id="focus-select-btn" type="button">设为重点监控</button>
-              <button id="focus-toggle-btn" type="button">暂停监控</button>
+              <button id="focus-start-btn" type="button">开始监控</button>
+              <button id="focus-stop-btn" type="button">停止监控</button>
             </div>
+            <div id="focus-room-checklist" class="keyword-room-list" style="max-height:220px;"></div>
             <div id="focus-status" class="auth-status">初始化中...</div>
           </article>
         </section>

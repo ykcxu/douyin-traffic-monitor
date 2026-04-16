@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const pathModule = require("path");
 const os = require("os");
-const { spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 const { URL } = require("url");
 const config = require("./config");
 const { bootstrapProject } = require("./services/bootstrap-service");
@@ -161,8 +161,8 @@ function createFocusMonitor(context) {
   const runtimeDir = config.paths.runtimeDir;
   const focusConfigPath = pathModule.join(runtimeDir, "focus-speech-config.json");
   const focusStatePath = pathModule.join(runtimeDir, "focus-speech-state.json");
-  const focusTranscriptPath = pathModule.join(runtimeDir, "focus-speech-transcripts.jsonl");
-  const segmentSec = Math.max(8, Number(config.focusSpeech?.segmentSec || 20));
+  const focusRootDir = pathModule.join(config.paths.docsDir, "focus-monitor");
+  const segmentSec = Math.max(8, Number(config.focusSpeech?.segmentSec || 60));
   const pollIntervalMs = Math.max(5000, Number(config.focusSpeech?.pollIntervalSec || 6) * 1000);
   const transcriptsKeep = Math.max(50, Number(config.focusSpeech?.transcriptsKeep || 300));
 
@@ -173,37 +173,150 @@ function createFocusMonitor(context) {
   );
 
   const state = {
-    busy: false,
-    timer: null
+    roomTimers: new Map(),
+    roomBusy: new Set(),
+    roomStatus: {}
   };
 
+  if (!fs.existsSync(focusRootDir)) {
+    fs.mkdirSync(focusRootDir, { recursive: true });
+  }
+
   function readConfig() {
-    return readJsonIfExists(focusConfigPath, {
+    const raw = readJsonIfExists(focusConfigPath, {
       enabled: false,
-      liveWebRid: "",
-      accountName: "",
+      monitoredLiveWebRids: [],
+      selectedLiveWebRid: "",
       updatedAt: null
     });
+    if (Array.isArray(raw.monitoredLiveWebRids)) {
+      return raw;
+    }
+    const migratedRid = String(raw.liveWebRid || "").trim();
+    return {
+      enabled: Boolean(raw.enabled),
+      monitoredLiveWebRids: migratedRid ? [migratedRid] : [],
+      selectedLiveWebRid: migratedRid,
+      updatedAt: raw.updatedAt || null
+    };
   }
 
   function updateConfig(partial) {
+    const current = readConfig();
+    const merged = {
+      ...current,
+      ...partial
+    };
+    const deduped = Array.from(new Set((merged.monitoredLiveWebRids || []).map((item) => String(item || "").trim()).filter(Boolean)));
+    merged.monitoredLiveWebRids = deduped;
+    if (!merged.selectedLiveWebRid || !deduped.includes(merged.selectedLiveWebRid)) {
+      merged.selectedLiveWebRid = deduped[0] || "";
+    }
     const next = {
-      ...readConfig(),
-      ...partial,
+      ...merged,
       updatedAt: new Date().toISOString()
     };
     writeJsonFile(focusConfigPath, next);
+    ensureRoomTimers(next);
+    writeStateSnapshot();
     return next;
   }
 
-  function writeState(partial) {
-    const next = {
-      ...readJsonIfExists(focusStatePath, {}),
+  function toSafeName(value) {
+    return String(value || "")
+      .normalize("NFKC")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getRoomMeta(liveWebRid) {
+    const target = roomMap.get(liveWebRid) || {};
+    const accountName = target.accountName || liveWebRid;
+    return {
+      liveWebRid,
+      accountName,
+      category: target.category || "",
+      department: target.department || ""
+    };
+  }
+
+  function getRoomPaths(liveWebRid) {
+    const roomDir = pathModule.join(focusRootDir, liveWebRid);
+    const audioDir = pathModule.join(roomDir, "audio");
+    const transcriptJsonl = pathModule.join(roomDir, "transcripts.jsonl");
+    const transcriptMd = pathModule.join(roomDir, "transcript.md");
+    if (!fs.existsSync(audioDir)) {
+      fs.mkdirSync(audioDir, { recursive: true });
+    }
+    return {
+      roomDir,
+      audioDir,
+      transcriptJsonl,
+      transcriptMd
+    };
+  }
+
+  function readRoomTail(liveWebRid, limit = 200) {
+    const paths = getRoomPaths(liveWebRid);
+    return tailJsonLines(paths.transcriptJsonl, limit);
+  }
+
+  function keepRecentRoomTranscripts(liveWebRid) {
+    const paths = getRoomPaths(liveWebRid);
+    if (!fs.existsSync(paths.transcriptJsonl)) {
+      return;
+    }
+    const rows = tailJsonLines(paths.transcriptJsonl, transcriptsKeep);
+    rows.reverse();
+    fs.writeFileSync(
+      paths.transcriptJsonl,
+      rows.map((item) => JSON.stringify(item)).join("\n") + (rows.length ? "\n" : ""),
+      "utf8"
+    );
+  }
+
+  function appendTranscriptMarkdown(liveWebRid, row) {
+    const meta = getRoomMeta(liveWebRid);
+    const paths = getRoomPaths(liveWebRid);
+    if (!fs.existsSync(paths.transcriptMd)) {
+      const header = `# 重点直播间话术转写\n\n- 直播间：${meta.accountName}\n- rid：${meta.liveWebRid}\n- 分类：${meta.category || "未分组"}\n- 学科：${meta.department || "未分组"}\n\n---\n`;
+      fs.writeFileSync(paths.transcriptMd, header, "utf8");
+    }
+    const block = `\n## ${row.time}\n\n${row.text}\n`;
+    fs.appendFileSync(paths.transcriptMd, block, "utf8");
+  }
+
+  function updateRoomStatus(liveWebRid, partial) {
+    const prev = state.roomStatus[liveWebRid] || {};
+    state.roomStatus[liveWebRid] = {
+      ...prev,
       ...partial,
       updatedAt: new Date().toISOString()
     };
-    writeJsonFile(focusStatePath, next);
-    return next;
+  }
+
+  function writeStateSnapshot() {
+    const conf = readConfig();
+    const monitoredRooms = (conf.monitoredLiveWebRids || []).map((rid) => {
+      const meta = getRoomMeta(rid);
+      const roomPaths = getRoomPaths(rid);
+      return {
+        ...meta,
+        status: state.roomStatus[rid] || { status: "idle" },
+        transcriptFile: roomPaths.transcriptMd,
+        transcriptJsonl: roomPaths.transcriptJsonl,
+        audioDir: roomPaths.audioDir
+      };
+    });
+    writeJsonFile(focusStatePath, {
+      running: true,
+      enabled: Boolean(conf.enabled),
+      monitoredCount: monitoredRooms.length,
+      selectedLiveWebRid: conf.selectedLiveWebRid || "",
+      monitoredRooms,
+      updatedAt: new Date().toISOString()
+    });
   }
 
   async function transcribeWithOpenAI(audioPath) {
@@ -232,7 +345,61 @@ function createFocusMonitor(context) {
     return String(payload?.text || "").trim() || null;
   }
 
-  function transcribeWithCommand(audioPath) {
+  async function runProcessAsync(executable, args, options = {}) {
+    return new Promise((resolve) => {
+      const child = spawn(executable, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        ...options
+      });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      let timer = null;
+      if (options.timeout && options.timeout > 0) {
+        timer = setTimeout(() => {
+          if (!settled) {
+            try {
+              child.kill("SIGTERM");
+            } catch (error) {
+              // ignore
+            }
+          }
+        }, options.timeout);
+      }
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      child.on("close", (code, signal) => {
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        resolve({
+          code,
+          signal,
+          stdout,
+          stderr
+        });
+      });
+      child.on("error", (error) => {
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+        }
+        resolve({
+          code: -1,
+          signal: null,
+          stdout,
+          stderr: `${stderr}\n${error.message}`.trim()
+        });
+      });
+    });
+  }
+
+  async function transcribeWithCommand(audioPath) {
     const commandTemplate = String(config.focusSpeech?.asrCommand || "").trim();
     if (!commandTemplate) {
       return null;
@@ -246,73 +413,51 @@ function createFocusMonitor(context) {
     const executable = tokens[0].replace(/^"|"$/g, "");
     const args = tokens.slice(1).map((token) => token.replace(/^"|"$/g, ""));
 
-    const exec = spawnSync(executable, args, {
-      encoding: "utf8",
+    const exec = await runProcessAsync(executable, args, {
       timeout: Math.max(15000, segmentSec * 1000),
       env: {
         ...process.env,
         PYTHONIOENCODING: "utf-8"
       }
     });
-    if (exec.status !== 0) {
+    if (exec.code !== 0) {
       throw new Error((exec.stderr || exec.stdout || "asr_command_failed").trim());
     }
     const text = String(exec.stdout || "").trim();
     return text || null;
   }
 
-  function keepRecentTranscripts() {
-    if (!fs.existsSync(focusTranscriptPath)) {
-      return;
-    }
-    const rows = tailJsonLines(focusTranscriptPath, transcriptsKeep);
-    rows.reverse();
-    fs.writeFileSync(
-      focusTranscriptPath,
-      rows.map((item) => JSON.stringify(item)).join("\n") + (rows.length ? "\n" : ""),
-      "utf8"
-    );
-  }
-
-  async function captureAndTranscribe(liveWebRid, accountName) {
+  async function captureAndTranscribe(liveWebRid) {
+    const meta = getRoomMeta(liveWebRid);
     const liveState = await fetchLiveRoomStateViaApi(liveWebRid);
     if (liveState.statusText !== "live") {
-      writeState({
-        running: true,
+      updateRoomStatus(liveWebRid, {
         status: "offline",
-        selected: { liveWebRid, accountName },
         detail: "当前直播间离线"
       });
       return;
     }
     const hlsUrl = String(liveState?.roomData?.stream_url?.hls_pull_url || "").trim();
     if (!hlsUrl) {
-      writeState({
-        running: true,
+      updateRoomStatus(liveWebRid, {
         status: "live_no_stream",
-        selected: { liveWebRid, accountName },
         detail: "在播但未获取到音频流地址"
       });
       return;
     }
 
-    const tempDir = pathModule.join(runtimeDir, "focus-audio-temp");
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
+    const paths = getRoomPaths(liveWebRid);
     const ts = Date.now();
-    const wavPath = pathModule.join(tempDir, `focus-${liveWebRid}-${ts}.wav`);
-    const ffmpeg = spawnSync(
+    const wavPath = pathModule.join(paths.audioDir, `focus-${liveWebRid}-${ts}.wav`);
+    const ffmpeg = await runProcessAsync(
       "ffmpeg",
       ["-y", "-loglevel", "error", "-i", hlsUrl, "-t", String(segmentSec), "-vn", "-ac", "1", "-ar", "16000", wavPath],
-      { encoding: "utf8", timeout: Math.max(15000, segmentSec * 1000 + 12000) }
+      { timeout: Math.max(15000, segmentSec * 1000 + 12000) }
     );
 
-    if (ffmpeg.status !== 0 || !fs.existsSync(wavPath)) {
-      writeState({
-        running: true,
+    if (ffmpeg.code !== 0 || !fs.existsSync(wavPath)) {
+      updateRoomStatus(liveWebRid, {
         status: "ffmpeg_error",
-        selected: { liveWebRid, accountName },
         detail: String(ffmpeg.stderr || ffmpeg.stdout || "ffmpeg_failed").slice(0, 300)
       });
       return;
@@ -321,7 +466,7 @@ function createFocusMonitor(context) {
     let text = null;
     let asrBackend = "none";
     try {
-      text = transcribeWithCommand(wavPath);
+      text = await transcribeWithCommand(wavPath);
       if (text) {
         asrBackend = "command";
       }
@@ -331,19 +476,11 @@ function createFocusMonitor(context) {
           asrBackend = "openai";
         }
       }
-    } finally {
-      try {
-        fs.unlinkSync(wavPath);
-      } catch (error) {
-        // ignore
-      }
-    }
+    } finally {}
 
     if (!text) {
-      writeState({
-        running: true,
+      updateRoomStatus(liveWebRid, {
         status: "asr_unavailable",
-        selected: { liveWebRid, accountName },
         detail: "未配置可用ASR后端（FOCUS_ASR_COMMAND 或 OPENAI_API_KEY）"
       });
       return;
@@ -352,71 +489,92 @@ function createFocusMonitor(context) {
     const row = {
       time: new Date().toISOString(),
       liveWebRid,
-      accountName,
+      accountName: meta.accountName,
       text,
-      asrBackend
+      asrBackend,
+      audioFile: wavPath
     };
-    appendJsonLine(focusTranscriptPath, row);
-    keepRecentTranscripts();
-    writeState({
-      running: true,
+    appendJsonLine(paths.transcriptJsonl, row);
+    keepRecentRoomTranscripts(liveWebRid);
+    appendTranscriptMarkdown(liveWebRid, row);
+    updateRoomStatus(liveWebRid, {
       status: "ok",
-      selected: { liveWebRid, accountName },
       asrBackend,
       latest: row
     });
   }
 
-  async function tick() {
-    if (state.busy) {
+  async function runRoomCycle(liveWebRid) {
+    if (state.roomBusy.has(liveWebRid)) {
       return;
     }
-    state.busy = true;
+    state.roomBusy.add(liveWebRid);
     try {
-      const conf = readConfig();
-      if (!conf.enabled || !conf.liveWebRid) {
-        writeState({
-          running: true,
-          status: "idle",
-          selected: null,
-          detail: "未启用重点直播间话术监控"
-        });
-        return;
-      }
-
-      const selectedTarget = roomMap.get(conf.liveWebRid) || {};
-      const accountName = conf.accountName || selectedTarget.accountName || conf.liveWebRid;
-      await captureAndTranscribe(conf.liveWebRid, accountName);
+      await captureAndTranscribe(liveWebRid);
     } catch (error) {
-      writeState({
-        running: true,
+      updateRoomStatus(liveWebRid, {
         status: "error",
         detail: String(error.message || error).slice(0, 300)
       });
     } finally {
-      state.busy = false;
+      state.roomBusy.delete(liveWebRid);
+      writeStateSnapshot();
     }
+  }
+
+  function stopRoomTimer(liveWebRid) {
+    const timer = state.roomTimers.get(liveWebRid);
+    if (timer) {
+      clearInterval(timer);
+      state.roomTimers.delete(liveWebRid);
+    }
+    delete state.roomStatus[liveWebRid];
+  }
+
+  function startRoomTimer(liveWebRid) {
+    if (state.roomTimers.has(liveWebRid)) {
+      return;
+    }
+    updateRoomStatus(liveWebRid, {
+      status: "booting",
+      detail: "room monitor started"
+    });
+    runRoomCycle(liveWebRid);
+    const timer = setInterval(() => runRoomCycle(liveWebRid), pollIntervalMs);
+    state.roomTimers.set(liveWebRid, timer);
+  }
+
+  function ensureRoomTimers(conf = readConfig()) {
+    const enabled = Boolean(conf.enabled);
+    const wanted = enabled ? new Set(conf.monitoredLiveWebRids || []) : new Set();
+    for (const rid of state.roomTimers.keys()) {
+      if (!wanted.has(rid)) {
+        stopRoomTimer(rid);
+      }
+    }
+    for (const rid of wanted) {
+      if (roomMap.has(rid)) {
+        startRoomTimer(rid);
+      }
+    }
+    writeStateSnapshot();
   }
 
   function start() {
-    writeState({
-      running: true,
-      status: "booting",
-      detail: "focus monitor started"
-    });
-    tick();
-    state.timer = setInterval(tick, pollIntervalMs);
+    ensureRoomTimers(readConfig());
   }
 
   function stop() {
-    if (state.timer) {
-      clearInterval(state.timer);
-      state.timer = null;
+    for (const rid of [...state.roomTimers.keys()]) {
+      stopRoomTimer(rid);
     }
-    writeState({
+    writeJsonFile(focusStatePath, {
       running: false,
-      status: "stopped",
-      detail: "focus monitor stopped"
+      enabled: false,
+      monitoredCount: 0,
+      monitoredRooms: [],
+      selectedLiveWebRid: "",
+      updatedAt: new Date().toISOString()
     });
   }
 
@@ -436,10 +594,27 @@ function createFocusMonitor(context) {
     updateConfig,
     readState: () => readJsonIfExists(focusStatePath, {
       running: false,
-      status: "idle"
+      enabled: false,
+      monitoredRooms: []
     }),
     listTargets,
-    listTranscripts: (limit) => tailJsonLines(focusTranscriptPath, limit)
+    listTranscripts: (liveWebRid, limit) => {
+      if (!liveWebRid) {
+        const conf = readConfig();
+        liveWebRid = conf.selectedLiveWebRid || conf.monitoredLiveWebRids?.[0] || "";
+      }
+      if (!liveWebRid) {
+        return [];
+      }
+      return readRoomTail(liveWebRid, limit);
+    },
+    setSelectedRoom: (liveWebRid) => updateConfig({
+      selectedLiveWebRid: String(liveWebRid || "").trim()
+    }),
+    setMonitoredRooms: (liveWebRids, enabled = true) => updateConfig({
+      monitoredLiveWebRids: Array.isArray(liveWebRids) ? liveWebRids : [],
+      enabled: Boolean(enabled)
+    })
   };
 }
 
@@ -629,29 +804,21 @@ function createAppServer(context) {
 
     if (path === "/api/focus/transcripts") {
       const limit = Number(url.searchParams.get("limit") || "200");
-      const rows = context.focusMonitor.listTranscripts(Number.isFinite(limit) ? limit : 200);
+      const liveWebRid = String(url.searchParams.get("liveWebRid") || "").trim();
+      const rows = context.focusMonitor.listTranscripts(liveWebRid, Number.isFinite(limit) ? limit : 200);
       writeJson(res, 200, {
         count: rows.length,
+        liveWebRid,
         rows
       });
       return;
     }
 
-    if (path === "/api/focus/select" && req.method === "POST") {
+    if (path === "/api/focus/monitor-set" && req.method === "POST") {
       const body = await readJsonBody(req);
-      const liveWebRid = String(body?.liveWebRid || "").trim();
-      if (!liveWebRid) {
-        writeJson(res, 400, {
-          error: "missing_live_web_rid"
-        });
-        return;
-      }
-      const target = context.focusMonitor.listTargets().find((item) => item.liveWebRid === liveWebRid);
-      const configRow = context.focusMonitor.updateConfig({
-        enabled: true,
-        liveWebRid,
-        accountName: target?.accountName || ""
-      });
+      const liveWebRids = Array.isArray(body?.liveWebRids) ? body.liveWebRids : [];
+      const enabled = body?.enabled === undefined ? true : Boolean(body.enabled);
+      const configRow = context.focusMonitor.setMonitoredRooms(liveWebRids, enabled);
       writeJson(res, 200, {
         ok: true,
         config: configRow
@@ -659,12 +826,10 @@ function createAppServer(context) {
       return;
     }
 
-    if (path === "/api/focus/enable" && req.method === "POST") {
+    if (path === "/api/focus/display-select" && req.method === "POST") {
       const body = await readJsonBody(req);
-      const enabled = Boolean(body?.enabled);
-      const configRow = context.focusMonitor.updateConfig({
-        enabled
-      });
+      const liveWebRid = String(body?.liveWebRid || "").trim();
+      const configRow = context.focusMonitor.setSelectedRoom(liveWebRid);
       writeJson(res, 200, {
         ok: true,
         config: configRow
