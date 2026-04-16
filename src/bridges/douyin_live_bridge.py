@@ -2,12 +2,14 @@ import argparse
 import gzip
 import json
 import os
+import re
 import sys
 import threading
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
+import requests
 from websocket import WebSocketApp
 
 
@@ -55,6 +57,59 @@ class LiveBridge:
         self.DouyinAPI = DouyinAPI
         self.generate_signature = generate_signature
         self.Live_pb2 = Live_pb2
+
+    def ensure_ttwid_cookie(self, auth):
+        if auth.cookie.get("ttwid"):
+            return auth.cookie.get("ttwid")
+
+        try:
+            response = requests.get(
+                "https://live.douyin.com/",
+                headers={
+                    "user-agent": self.HeaderBuilder.ua,
+                    "accept-language": "zh-CN,zh;q=0.9",
+                },
+                timeout=10,
+                verify=False,
+            )
+            ttwid = response.cookies.get_dict().get("ttwid")
+            if ttwid:
+                auth.cookie["ttwid"] = ttwid
+                auth.cookie_str = "; ".join([f"{k}={v}" for k, v in auth.cookie.items()])
+                return ttwid
+        except Exception:
+            pass
+
+        return None
+
+    def get_live_info_fallback(self, auth, live_id):
+        url = "https://live.douyin.com/" + live_id
+        response = requests.get(
+            url,
+            headers={
+                "user-agent": self.HeaderBuilder.ua,
+                "accept-language": "zh-CN,zh;q=0.9",
+            },
+            cookies=auth.cookie,
+            verify=False,
+            timeout=12,
+        )
+
+        text = response.text
+        if "验证码中间页" in text or "captcha/index.js" in text:
+            raise RuntimeError("captcha_required")
+
+        ttwid = response.cookies.get_dict().get("ttwid") or auth.cookie.get("ttwid") or self.ensure_ttwid_cookie(auth)
+        room_id_match = re.findall(r'\\"roomId\\":\\"(\d+)\\"', text)
+        user_id_match = re.findall(r'\\"user_unique_id\\":\\"(\d+)\\"', text)
+        if not room_id_match or not user_id_match:
+            raise RuntimeError("room_info_not_found")
+
+        return {
+            "room_id": room_id_match[0],
+            "user_id": user_id_match[0],
+            "ttwid": ttwid,
+        }
 
     def should_stop(self):
         if self.args.duration <= 0:
@@ -213,7 +268,11 @@ class LiveBridge:
     def start(self):
         auth = self.DouyinAuth()
         auth.perepare_auth(self.args.cookies, "", "")
-        room_info = self.DouyinAPI.get_live_info(auth, self.args.live_id)
+        self.ensure_ttwid_cookie(auth)
+        try:
+            room_info = self.DouyinAPI.get_live_info(auth, self.args.live_id)
+        except Exception:
+            room_info = self.get_live_info_fallback(auth, self.args.live_id)
         if not room_info:
             emit({"type": "bridge_error", "error": "failed_to_get_live_info", "liveId": self.args.live_id})
             raise RuntimeError("failed_to_get_live_info")
@@ -298,7 +357,11 @@ def main():
         sys.exit(2)
 
     bridge = LiveBridge(args)
-    bridge.start()
+    try:
+        bridge.start()
+    except Exception as error:
+        emit({"type": "bridge_error", "error": str(error), "hint": "check_full_live_cookies"})
+        sys.exit(1)
 
 
 if __name__ == "__main__":
