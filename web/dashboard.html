@@ -11,87 +11,138 @@
       <header class="hero">
         <h1>抖音流量监控看板</h1>
         <p id="refresh-time">数据刷新中...</p>
+        <div class="controls">
+          <label><input id="auto-refresh" type="checkbox" checked /> 自动刷新</label>
+          <label>周期
+            <select id="refresh-interval">
+              <option value="5000">5秒</option>
+              <option value="8000" selected>8秒</option>
+              <option value="15000">15秒</option>
+            </select>
+          </label>
+          <button id="refresh-now" type="button">立即刷新</button>
+        </div>
       </header>
 
-      <section class="grid top-grid">
-        <article class="card metric">
-          <h2>监控账号总数</h2>
-          <p id="metric-targets">-</p>
-        </article>
-        <article class="card metric">
-          <h2>已采样直播间</h2>
-          <p id="metric-sampled">-</p>
-        </article>
-        <article class="card metric">
-          <h2>消息总量（最近）</h2>
-          <p id="metric-messages">-</p>
-        </article>
+      <nav class="tabs">
+        <button type="button" class="tab active" data-tab="overview">概览</button>
+        <button type="button" class="tab" data-tab="danmu">弹幕情况</button>
+        <button type="button" class="tab" data-tab="logs">实时日志</button>
+      </nav>
+
+      <section id="tab-overview" class="tab-pane active">
+        <section class="grid top-grid">
+          <article class="card metric">
+            <h2>监控账号总数</h2>
+            <p id="metric-targets">-</p>
+          </article>
+          <article class="card metric">
+            <h2>已采样直播间</h2>
+            <p id="metric-sampled">-</p>
+          </article>
+          <article class="card metric">
+            <h2>消息总量（最近）</h2>
+            <p id="metric-messages">-</p>
+          </article>
+        </section>
+
+        <section class="grid">
+          <article class="card">
+            <h2>学科对比</h2>
+            <div class="table-wrap">
+              <table id="department-table">
+                <thead>
+                  <tr>
+                    <th>学科</th>
+                    <th>目标数</th>
+                    <th>已采样</th>
+                    <th>在播</th>
+                    <th>平均在线</th>
+                    <th>峰值在线</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>内部 vs 竞品</h2>
+            <div class="table-wrap">
+              <table id="category-table">
+                <thead>
+                  <tr>
+                    <th>分类</th>
+                    <th>目标账号</th>
+                    <th>目标直播间</th>
+                    <th>已采样</th>
+                    <th>在播</th>
+                    <th>平均在线</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid">
+          <article class="card">
+            <h2>最近采样</h2>
+            <div class="table-wrap">
+              <table id="snapshot-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>账号</th>
+                    <th>学科</th>
+                    <th>在播</th>
+                    <th>在线</th>
+                    <th>点赞</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <h2>学科对比</h2>
-          <div class="table-wrap">
-            <table id="department-table">
-              <thead>
-                <tr>
-                  <th>学科</th>
-                  <th>目标数</th>
-                  <th>已采样</th>
-                  <th>在播</th>
-                  <th>平均在线</th>
-                  <th>峰值在线</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </article>
+      <section id="tab-danmu" class="tab-pane">
+        <section class="grid top-grid">
+          <article class="card metric">
+            <h2>聊天消息</h2>
+            <p id="metric-chat">-</p>
+          </article>
+          <article class="card metric">
+            <h2>点赞/礼物</h2>
+            <p id="metric-interact">-</p>
+          </article>
+          <article class="card metric">
+            <h2>派生信号</h2>
+            <p id="metric-derived">-</p>
+          </article>
+        </section>
 
-        <article class="card">
-          <h2>内部 vs 竞品</h2>
-          <div class="table-wrap">
-            <table id="category-table">
-              <thead>
-                <tr>
-                  <th>分类</th>
-                  <th>目标账号</th>
-                  <th>目标直播间</th>
-                  <th>已采样</th>
-                  <th>在播</th>
-                  <th>平均在线</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </article>
+        <section class="grid">
+          <article class="card">
+            <h2>高频关键词（最近 50 条）</h2>
+            <div id="keyword-cloud" class="keyword-cloud"></div>
+          </article>
+          <article class="card">
+            <h2>最近消息流</h2>
+            <ul id="message-list" class="message-list"></ul>
+          </article>
+        </section>
       </section>
 
-      <section class="grid">
-        <article class="card">
-          <h2>最近采样</h2>
-          <div class="table-wrap">
-            <table id="snapshot-table">
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>账号</th>
-                  <th>学科</th>
-                  <th>在播</th>
-                  <th>在线</th>
-                  <th>点赞</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </article>
-
-        <article class="card">
-          <h2>最近消息</h2>
-          <ul id="message-list" class="message-list"></ul>
-        </article>
+      <section id="tab-logs" class="tab-pane">
+        <section class="grid">
+          <article class="card">
+            <h2>实时日志（最近 100 条）</h2>
+            <ul id="log-list" class="log-list"></ul>
+          </article>
+        </section>
       </section>
     </main>
     <script src="/web/dashboard.js"></script>

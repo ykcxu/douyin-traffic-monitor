@@ -34,6 +34,37 @@ function writeFile(res, filePath, contentType) {
   }
 }
 
+function readRecentLogs(limit = 100) {
+  const logsDir = pathModule.join(config.paths.runtimeDir, "logs");
+  if (!fs.existsSync(logsDir)) {
+    return [];
+  }
+
+  const files = fs
+    .readdirSync(logsDir)
+    .filter((name) => name.endsWith(".log"))
+    .sort((a, b) => b.localeCompare(a, "en"));
+  if (files.length === 0) {
+    return [];
+  }
+
+  const latestFile = pathModule.join(logsDir, files[0]);
+  const lines = fs.readFileSync(latestFile, "utf8").split(/\r?\n/).filter(Boolean);
+  const selected = lines.slice(-limit).reverse();
+
+  return selected.map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch (error) {
+      return {
+        time: new Date().toISOString(),
+        level: "info",
+        message: line
+      };
+    }
+  });
+}
+
 function createServerContext() {
   const boot = bootstrapProject();
   const baselineDepartment = buildDepartmentComparison(boot.targets);
@@ -115,6 +146,16 @@ function createAppServer(context) {
     if (path === "/api/messages/recent") {
       const limit = Number(url.searchParams.get("limit") || "50");
       const rows = listRecentLiveMessages(context.db, Number.isFinite(limit) ? limit : 50);
+      writeJson(res, 200, {
+        count: rows.length,
+        rows
+      });
+      return;
+    }
+
+    if (path === "/api/logs/recent") {
+      const limit = Number(url.searchParams.get("limit") || "100");
+      const rows = readRecentLogs(Number.isFinite(limit) ? limit : 100);
       writeJson(res, 200, {
         count: rows.length,
         rows
