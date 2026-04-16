@@ -93,8 +93,14 @@ async function sampleSingleLiveTarget(db, target) {
 
 async function sampleLiveTargets(db, targets, options = {}) {
   const normalizedTargets = normalizeTargets(targets).filter((target) => target.liveWebRid);
-  const limit = options.limit || normalizedTargets.length;
-  const selectedTargets = normalizedTargets.slice(0, limit);
+  const total = normalizedTargets.length;
+  const limit = Math.max(1, Math.min(options.limit || total, total || 1));
+  const startIndexRaw = Number.isFinite(options.startIndex) ? options.startIndex : 0;
+  const startIndex = total > 0 ? ((startIndexRaw % total) + total) % total : 0;
+  const selectedTargets = [];
+  for (let i = 0; i < limit && i < total; i += 1) {
+    selectedTargets.push(normalizedTargets[(startIndex + i) % total]);
+  }
   const results = [];
 
   for (const target of selectedTargets) {

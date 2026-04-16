@@ -149,6 +149,7 @@ npm test
 - 看板和 `/api/messages/recent` 会优先显示这些派生消息，保证分析链路不断
 - 可额外配置 `DY_USER_INFO_URL`、`DY_WEBCAST_SETTING_URL`，在看板显示当前鉴权可用性诊断
 - 配置 `DY_LIVE_COOKIES`（或 `DY_LIVE_COOKIES_FILE`）后，直播采样会优先走 `webcast/room/web/enter` 接口，显著降低验证码受限概率
+- 默认直播采样策略为 `60秒/轮 + 每轮12个直播间`，并按轮转窗口覆盖，避免只采样固定前几个账号
 
 ## 验证码受限恢复（合规）
 
