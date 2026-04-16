@@ -3,6 +3,8 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+.env
+.env.local
 data/monitor-targets.json
 data/runtime/
 storage/

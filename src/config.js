@@ -1,4 +1,33 @@
 const path = require("path");
+const fs = require("fs");
+
+function loadDotEnv(rootDir) {
+  const envFile = path.join(rootDir, ".env");
+  if (!fs.existsSync(envFile)) {
+    return;
+  }
+
+  const content = fs.readFileSync(envFile, "utf8");
+  const lines = content.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const index = line.indexOf("=");
+    if (index <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, index).trim();
+    const value = line.slice(index + 1).trim();
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+    process.env[key] = value;
+  }
+}
 
 function readNumber(name, fallback) {
   const value = process.env[name];
@@ -11,6 +40,7 @@ function readNumber(name, fallback) {
 }
 
 const rootDir = path.join(__dirname, "..");
+loadDotEnv(rootDir);
 
 module.exports = {
   app: {
