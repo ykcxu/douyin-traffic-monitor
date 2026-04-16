@@ -406,6 +406,35 @@ th {
   color: var(--ink);
 }
 
+.focus-offline-title {
+  margin-top: 8px;
+  font-weight: 700;
+  color: #c62828;
+}
+
+.focus-offline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.focus-offline-item {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #b71c1c;
+  background: #ffebee;
+  border: 1px solid #ffcdd2;
+}
+
+.focus-offline-empty {
+  margin-top: 8px;
+  color: #6a7898;
+  font-size: 13px;
+}
+
 .insight-list {
   font-size: 14px;
   line-height: 1.7;

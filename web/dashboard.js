@@ -631,14 +631,39 @@ function renderFocusStatus() {
   }
   const conf = focusState.config || {};
   const st = focusState.status || {};
-  const monitoredCount = (conf.monitoredLiveWebRids || []).length;
+  const monitoredRids = (conf.monitoredLiveWebRids || []).map((item) => String(item));
+  const monitoredCount = monitoredRids.length;
   const statuses = st.monitoredRooms || [];
   const okCount = statuses.filter((item) => item?.status?.status === "ok").length;
+  const targetByRid = new Map((focusState.targets || []).map((item) => [String(item.liveWebRid), item]));
+  const statusByRid = new Map(statuses.map((item) => [String(item.liveWebRid), item?.status || {}]));
+  const offlineRows = [];
+  for (const rid of monitoredRids) {
+    const roomStatus = statusByRid.get(rid) || {};
+    const code = String(roomStatus.status || "");
+    if (code === "offline" || code === "live_no_stream") {
+      const room = targetByRid.get(rid);
+      const reason = code === "offline" ? "未开播" : "在播无音频流";
+      offlineRows.push({
+        name: room?.accountName || rid,
+        reason
+      });
+    }
+  }
+  const offlineHtml = offlineRows.length
+    ? `
+      <div class="focus-offline-title">未在播房间（${offlineRows.length}）</div>
+      <div class="focus-offline-list">
+        ${offlineRows.map((item) => `<span class="focus-offline-item">${escapeHtml(item.name)}（${escapeHtml(item.reason)}）</span>`).join("")}
+      </div>
+    `
+    : `<div class="focus-offline-empty">未在播房间：暂无</div>`;
   statusEl.innerHTML = `
     <div>监控房间数：${monitoredCount}</div>
     <div>监控开关：${conf.enabled ? "已开启" : "已关闭"}</div>
     <div>可用转写房间：${okCount}/${monitoredCount}</div>
     <div>最近更新时间：${fmtTime(st.updatedAt || conf.updatedAt || new Date().toISOString())}</div>
+    ${offlineHtml}
   `;
 }
 
