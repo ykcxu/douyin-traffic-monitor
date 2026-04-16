@@ -104,7 +104,7 @@ module.exports = {
     settingUrl: process.env.DY_WEBCAST_SETTING_URL || ""
   },
   focusSpeech: {
-    segmentSec: readNumber("FOCUS_SEGMENT_SEC", 20),
+    segmentSec: readNumber("FOCUS_SEGMENT_SEC", 60),
     pollIntervalSec: readNumber("FOCUS_POLL_INTERVAL_SEC", 6),
     transcriptsKeep: readNumber("FOCUS_TRANSCRIPTS_KEEP", 300),
     asrCommand: process.env.FOCUS_ASR_COMMAND || "",
