@@ -174,6 +174,7 @@ async function fetchLiveRoomStateViaApi(liveWebRid) {
     fetchedAt: new Date().toISOString(),
     ttwidCookie: null,
     rawHtmlLength: null,
+    roomData: room,
     source: "webcast_room_enter_api"
   };
 }
@@ -212,6 +213,7 @@ async function fetchLiveRoomState(liveWebRid) {
 module.exports = {
   fetchLiveRoomPage,
   fetchLiveRoomState,
+  fetchLiveRoomStateViaApi,
   parseRoomStateFromHtml,
   LiveRoomFetchError
 };

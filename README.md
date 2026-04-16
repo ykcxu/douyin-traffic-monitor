@@ -107,6 +107,7 @@ npm test
   - `ANALYSIS_INTERVAL_SEC`
   - `MESSAGE_MONITOR_ROOM_LIMIT`
   - `MESSAGE_BRIDGE_DURATION_SEC`
+  - `MESSAGE_API_POLL_INTERVAL_SEC`
   - `PYTHON_BIN`
   - `DOUYIN_SPIDER_PATH`
   - `DY_LIVE_COOKIES`
@@ -126,6 +127,7 @@ npm test
 - 本地 API 对比接口（学科对比、内部 vs 竞品）
 - 循环采样 worker
 - 消息流监听 worker（入库 `live_messages`）
+- 消息轮询 worker（优先采集 `preview_expose.chat_msgs`，并做去重入库）
 - 无 Cookie 派生消息流（由采样差分自动生成）
 
 ## API 参考

@@ -81,7 +81,8 @@ module.exports = {
   },
   messages: {
     roomLimit: readNumber("MESSAGE_MONITOR_ROOM_LIMIT", 1),
-    bridgeDurationSec: readNumber("MESSAGE_BRIDGE_DURATION_SEC", 0)
+    bridgeDurationSec: readNumber("MESSAGE_BRIDGE_DURATION_SEC", 0),
+    apiPollIntervalSec: readNumber("MESSAGE_API_POLL_INTERVAL_SEC", 8)
   },
   bridge: {
     pythonBin: process.env.PYTHON_BIN || "python",
