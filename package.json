@@ -12,6 +12,7 @@
     "report:daily": "node src/scripts/run-daily-report.js",
     "sample:live": "node src/scripts/sample-live.js",
     "worker:live": "node src/scripts/worker-live.js",
+    "worker:messages": "node src/scripts/worker-messages.js",
     "test": "node --test"
   },
   "keywords": [

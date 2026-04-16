@@ -30,6 +30,12 @@ npm run serve
 npm run worker:live
 ```
 
+启动直播消息监听 worker（弹幕/点赞/礼物/进场）：
+
+```bash
+npm run worker:messages
+```
+
 初始化本地数据库：
 
 ```bash
@@ -71,6 +77,7 @@ npm test
 - `src/services/`：启动、分析、报告生成逻辑
 - `src/services/live-sample-service.js`：直播间页面采样与快照落库
 - `src/services/comparison-service.js`：学科与竞品对比聚合输出
+- `src/bridges/douyin_live_bridge.py`：抖音直播消息桥接（WebSocket 解码）
 - `src/tasks/`：采样和分析任务注册表
 - `src/scripts/`：建库、生成日报等命令行脚本
 - `storage/app.db`：本地 SQLite 数据库文件
@@ -86,6 +93,11 @@ npm test
   - `LIVE_SAMPLE_BATCH_SIZE`
   - `PROFILE_SAMPLE_INTERVAL_SEC`
   - `ANALYSIS_INTERVAL_SEC`
+  - `MESSAGE_MONITOR_ROOM_LIMIT`
+  - `MESSAGE_BRIDGE_DURATION_SEC`
+  - `PYTHON_BIN`
+  - `DOUYIN_SPIDER_PATH`
+  - `DY_LIVE_COOKIES`
 
 ## 当前已落地能力
 
@@ -98,6 +110,16 @@ npm test
 - 本地日志输出
 - 本地 API 对比接口（学科对比、内部 vs 竞品）
 - 循环采样 worker
+- 消息流监听 worker（入库 `live_messages`）
+
+## API 参考
+
+- `GET /health`
+- `GET /api/summary`
+- `GET /api/snapshots/recent?limit=20`
+- `GET /api/compare/departments`
+- `GET /api/compare/internal-vs-competitor`
+- `GET /api/messages/recent?limit=50`
 
 ## 数据安全
 

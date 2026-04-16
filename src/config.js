@@ -36,5 +36,16 @@ module.exports = {
     profileSampleIntervalSec: readNumber("PROFILE_SAMPLE_INTERVAL_SEC", 3600),
     analysisIntervalSec: readNumber("ANALYSIS_INTERVAL_SEC", 300),
     liveSampleBatchSize: readNumber("LIVE_SAMPLE_BATCH_SIZE", 5)
+  },
+  messages: {
+    roomLimit: readNumber("MESSAGE_MONITOR_ROOM_LIMIT", 1),
+    bridgeDurationSec: readNumber("MESSAGE_BRIDGE_DURATION_SEC", 0)
+  },
+  bridge: {
+    pythonBin: process.env.PYTHON_BIN || "python",
+    sourceProjectPath:
+      process.env.DOUYIN_SPIDER_PATH || path.join(rootDir, "..", "DouYin_Spider"),
+    scriptPath: path.join(rootDir, "src", "bridges", "douyin_live_bridge.py"),
+    dyLiveCookies: process.env.DY_LIVE_COOKIES || ""
   }
 };

@@ -8,6 +8,7 @@ const {
   listRecentRoomSnapshots,
   listLatestSnapshotByAccount
 } = require("./db/repositories/snapshot-repository");
+const { listRecentLiveMessages } = require("./db/repositories/message-repository");
 const logger = require("./logger");
 
 function writeJson(res, statusCode, payload) {
@@ -76,6 +77,16 @@ function createAppServer(context) {
     if (path === "/api/compare/internal-vs-competitor") {
       const payload = buildInternalVsCompetitorView(context.db, context.baselineCompetitor);
       writeJson(res, 200, payload);
+      return;
+    }
+
+    if (path === "/api/messages/recent") {
+      const limit = Number(url.searchParams.get("limit") || "50");
+      const rows = listRecentLiveMessages(context.db, Number.isFinite(limit) ? limit : 50);
+      writeJson(res, 200, {
+        count: rows.length,
+        rows
+      });
       return;
     }
 
