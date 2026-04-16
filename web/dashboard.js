@@ -50,7 +50,15 @@ function fillMetrics(summary, snapshots, messages) {
 function renderDepartmentTable(payload) {
   const tbody = document.querySelector("#department-table tbody");
   tbody.innerHTML = "";
-  for (const row of payload.rows || []) {
+  const rows = payload?.rows || [];
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" style="color:#6a7898">暂无学科对比数据</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${row.department}</td>
@@ -67,6 +75,13 @@ function renderDepartmentTable(payload) {
 function renderCategoryTable(payload) {
   const tbody = document.querySelector("#category-table tbody");
   tbody.innerHTML = "";
+  if (!payload?.targetBaseline || !payload?.snapshotView) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" style="color:#6a7898">暂无内部/竞品对比数据</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
   const rows = [
     {
       label: "内部",
@@ -99,7 +114,15 @@ function renderCategoryTable(payload) {
 function renderSnapshotTable(payload) {
   const tbody = document.querySelector("#snapshot-table tbody");
   tbody.innerHTML = "";
-  for (const row of payload.rows || []) {
+  const rows = payload?.rows || [];
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" style="color:#6a7898">暂无采样记录（请等待 worker 运行 1-2 分钟）</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
     let raw = {};
     try {
       raw = typeof row.rawPayload === "string" ? JSON.parse(row.rawPayload) : row.rawPayload || {};
@@ -136,7 +159,19 @@ function renderSnapshotTable(payload) {
 function renderMessages(payload) {
   const list = document.getElementById("message-list");
   list.innerHTML = "";
-  for (const row of payload.rows || []) {
+  const rows = payload?.rows || [];
+  if (rows.length === 0) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div><span class="tag">empty</span> 当前暂无消息</div>
+      <div>可能是直播间本身弹幕较少，或刚启动尚未积累到最近窗口。</div>
+      <div style="color:#6a7898;font-size:12px">${new Date().toLocaleString()}</div>
+    `;
+    list.appendChild(li);
+    return;
+  }
+
+  for (const row of rows) {
     const li = document.createElement("li");
     li.innerHTML = `
       <div><span class="tag">${row.messageType || "unknown"}</span> <strong>${row.userName || row.accountUid || "-"}</strong></div>
@@ -151,7 +186,10 @@ function renderMessageMetrics(payload) {
   const rows = payload.rows || [];
   const chat = rows.filter((item) => String(item.messageType).includes("Chat")).length;
   const interact = rows.filter((item) => /(Like|Gift)/.test(String(item.messageType))).length;
-  const derived = rows.filter((item) => String(item.messageType).startsWith("Derived")).length;
+  const derived = rows.filter((item) => {
+    const type = String(item.messageType);
+    return type.startsWith("Derived") || type.startsWith("ApiRoomPulse");
+  }).length;
 
   document.getElementById("metric-chat").textContent = chat;
   document.getElementById("metric-interact").textContent = interact;
@@ -195,7 +233,16 @@ function renderKeywordCloud(payload) {
 function renderLogs(payload) {
   const list = document.getElementById("log-list");
   list.innerHTML = "";
-  for (const row of payload.rows || []) {
+  const rows = payload?.rows || [];
+  if (rows.length === 0) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div><span class="tag">log</span> 暂无日志输出</div>
+      <div style="color:#6a7898;font-size:12px">${new Date().toLocaleString()}</div>`;
+    list.appendChild(li);
+    return;
+  }
+
+  for (const row of rows) {
     const li = document.createElement("li");
     li.innerHTML = `<div><span class="tag">${row.level || "info"}</span> ${row.message || "-"}</div>
       <div style="color:#6a7898;font-size:12px">${fmtTime(row.time)}</div>`;
@@ -284,16 +331,27 @@ function resetAutoRefresh() {
 
 async function refresh() {
   try {
-    const [summary, snapshots, dept, category, messages, logs, insights, authStatus] = await Promise.all([
-      getJson("/api/summary"),
-      getJson("/api/snapshots/recent?limit=20"),
-      getJson("/api/compare/departments"),
-      getJson("/api/compare/internal-vs-competitor"),
-      getJson("/api/messages/recent?limit=50"),
-      getJson("/api/logs/recent?limit=100"),
-      getJson("/api/insights/daily"),
-      getJson("/api/auth/status")
-    ]);
+    const endpoints = [
+      "/api/summary",
+      "/api/snapshots/recent?limit=20",
+      "/api/compare/departments",
+      "/api/compare/internal-vs-competitor",
+      "/api/messages/recent?limit=50",
+      "/api/logs/recent?limit=100",
+      "/api/insights/daily",
+      "/api/auth/status"
+    ];
+    const result = await Promise.allSettled(endpoints.map((item) => getJson(item)));
+    const pick = (index, fallback) => (result[index]?.status === "fulfilled" ? result[index].value : fallback);
+
+    const summary = pick(0, { targetSummary: { total: "-" } });
+    const snapshots = pick(1, { count: 0, rows: [] });
+    const dept = pick(2, { rows: [] });
+    const category = pick(3, null);
+    const messages = pick(4, { count: 0, rows: [] });
+    const logs = pick(5, { count: 0, rows: [] });
+    const insights = pick(6, { peaks: [], suggestions: [] });
+    const authStatus = pick(7, {});
 
     fillMetrics(summary, snapshots, messages);
     renderDepartmentTable(dept);
@@ -304,8 +362,15 @@ async function refresh() {
     renderKeywordCloud(messages);
     renderLogs(logs);
     renderInsights(insights);
-    renderAuthStatus(authStatus);
-    document.getElementById("refresh-time").textContent = `最近刷新：${new Date().toLocaleString()}`;
+    if (authStatus && Object.keys(authStatus).length > 0) {
+      renderAuthStatus(authStatus);
+    }
+
+    const failed = result.filter((item) => item.status === "rejected").length;
+    document.getElementById("refresh-time").textContent =
+      failed > 0
+        ? `最近刷新：${new Date().toLocaleString()}（${failed} 个接口失败，已使用降级显示）`
+        : `最近刷新：${new Date().toLocaleString()}`;
   } catch (error) {
     document.getElementById("refresh-time").textContent = `刷新失败：${error.message}`;
   }
