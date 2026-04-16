@@ -30,6 +30,12 @@ npm run db:init
 npm run report:daily
 ```
 
+运行本地 smoke tests：
+
+```bash
+npm test
+```
+
 ## 说明
 
 - 项目目录：`douyin-traffic-monitor`
