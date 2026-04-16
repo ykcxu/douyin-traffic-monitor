@@ -52,7 +52,8 @@ function buildDepartmentLiveAvgSeries(db, departments = [], options = {}) {
     if (!valueMapByBucket.has(bucketTime)) {
       valueMapByBucket.set(bucketTime, {});
     }
-    valueMapByBucket.get(bucketTime)[row.department] = toNumber(row.avgOnlineLive, 1);
+    const avgValue = toNumber(row.avgOnlineLive, 1);
+    valueMapByBucket.get(bucketTime)[row.department] = avgValue === null ? 0 : avgValue;
     if (!safeDepartments.includes(row.department)) {
       safeDepartments.push(row.department);
     }
@@ -61,7 +62,7 @@ function buildDepartmentLiveAvgSeries(db, departments = [], options = {}) {
   const points = labels.map((bucketTime) => ({
     bucketTime: `${bucketTime}Z`,
     values: safeDepartments.reduce((acc, department) => {
-      acc[department] = valueMapByBucket.get(bucketTime)?.[department] ?? null;
+      acc[department] = valueMapByBucket.get(bucketTime)?.[department] ?? 0;
       return acc;
     }, {})
   }));

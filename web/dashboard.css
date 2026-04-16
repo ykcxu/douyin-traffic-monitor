@@ -157,6 +157,7 @@ body {
 
 .trend-card {
   min-height: 360px;
+  grid-column: 1 / -1;
 }
 
 .trend-chart {
