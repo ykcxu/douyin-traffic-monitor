@@ -94,6 +94,8 @@ npm test
 - `src/scripts/`：建库、生成日报等命令行脚本
 - `storage/app.db`：本地 SQLite 数据库文件
 - `data/runtime/logs/`：本地运行日志
+- `data/runtime/live-worker-status.json`：直播采样 worker 心跳状态
+- `data/runtime/message-worker-status.json`：消息 worker 心跳状态
 
 ## 配置
 
@@ -140,6 +142,7 @@ npm test
 - `GET /api/messages/recent?limit=50`
 - `GET /api/insights/daily`
 - `GET /api/auth/status`
+- `GET /api/system/health`
 - `POST /api/auth/recover`
 
 ## 无 Cookie 模式说明

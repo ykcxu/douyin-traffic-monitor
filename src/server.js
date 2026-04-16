@@ -104,6 +104,36 @@ function readMessageWorkerStatus() {
   }
 }
 
+function readLiveWorkerStatus() {
+  const statusPath = pathModule.join(config.paths.runtimeDir, "live-worker-status.json");
+  if (!fs.existsSync(statusPath)) {
+    return {
+      running: false,
+      time: null,
+      phase: "missing"
+    };
+  }
+  try {
+    const payload = JSON.parse(fs.readFileSync(statusPath, "utf8"));
+    return {
+      running: Boolean(payload?.running),
+      time: payload?.time || null,
+      phase: payload?.phase || null,
+      cycleDurationMs: Number(payload?.cycleDurationMs || 0),
+      cycle: payload?.cycle || null,
+      pid: payload?.pid || null,
+      error: payload?.error || null
+    };
+  } catch (error) {
+    return {
+      running: false,
+      time: null,
+      phase: "parse_failed",
+      error: error.message
+    };
+  }
+}
+
 function readJsonIfExists(filePath, fallback) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -155,6 +185,81 @@ function tailJsonLines(filePath, limit = 200) {
 
 function appendJsonLine(filePath, payload) {
   fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, "utf8");
+}
+
+function ageSecondsFromIso(iso) {
+  if (!iso) {
+    return null;
+  }
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) {
+    return null;
+  }
+  return Math.max(0, Math.round((Date.now() - ms) / 1000));
+}
+
+function startSystemHealthMonitor(context) {
+  const intervalMs = 60 * 1000;
+  const staleWarnSec = 180;
+  const timer = setInterval(() => {
+    try {
+      const liveStatus = readLiveWorkerStatus();
+      const messageStatus = readMessageWorkerStatus();
+      const focusState = context.focusMonitor.readState();
+      const focusRooms = Array.isArray(focusState?.monitoredRooms) ? focusState.monitoredRooms : [];
+      const focusOk = focusRooms.filter((room) => room?.status?.status === "ok").length;
+      const focusOffline = focusRooms.filter((room) => ["offline", "live_no_stream"].includes(room?.status?.status)).length;
+      const focusLimited = focusRooms.filter((room) =>
+        ["asr_unavailable", "ffmpeg_error", "error"].includes(room?.status?.status)
+      ).length;
+      const restrictionSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const restrictionStats = getRecentRestrictionStats(context.db, restrictionSince);
+      const liveAgeSec = ageSecondsFromIso(liveStatus.time);
+      const msgAgeSec = ageSecondsFromIso(messageStatus.time);
+      const healthPayload = {
+        liveWorker: {
+          running: Boolean(liveStatus.running),
+          phase: liveStatus.phase || null,
+          ageSec: liveAgeSec,
+          cycleDurationMs: liveStatus.cycleDurationMs || null,
+          error: liveStatus.error || null
+        },
+        messageWorker: {
+          running: Boolean(messageStatus.running),
+          phase: messageStatus.phase || null,
+          ageSec: msgAgeSec,
+          rotatingCurrent: messageStatus.rotatingCurrent?.liveWebRid || null,
+          dedicatedCount: Number(messageStatus.dedicatedCount || 0)
+        },
+        focusMonitor: {
+          enabled: Boolean(focusState?.enabled),
+          monitoredCount: Number(focusState?.monitoredCount || 0),
+          okCount: focusOk,
+          offlineCount: focusOffline,
+          limitedCount: focusLimited
+        },
+        restrictionLast10m: restrictionStats
+      };
+      const hasStale = (liveAgeSec !== null && liveAgeSec > staleWarnSec) || (msgAgeSec !== null && msgAgeSec > staleWarnSec);
+      if (!liveStatus.running || !messageStatus.running || hasStale) {
+        logger.warn("系统健康心跳（告警）", healthPayload);
+      } else {
+        logger.info("系统健康心跳", healthPayload);
+      }
+    } catch (error) {
+      logger.error("系统健康心跳失败", {
+        error: error.message
+      });
+    }
+  }, intervalMs);
+
+  return () => {
+    try {
+      clearInterval(timer);
+    } catch (error) {
+      // ignore
+    }
+  };
 }
 
 function createFocusMonitor(context) {
@@ -786,6 +891,46 @@ function createAppServer(context) {
       return;
     }
 
+    if (path === "/api/system/health") {
+      const liveStatus = readLiveWorkerStatus();
+      const messageStatus = readMessageWorkerStatus();
+      const focusState = context.focusMonitor.readState();
+      const focusRooms = Array.isArray(focusState?.monitoredRooms) ? focusState.monitoredRooms : [];
+      const focusOk = focusRooms.filter((room) => room?.status?.status === "ok").length;
+      const focusOffline = focusRooms.filter((room) => ["offline", "live_no_stream"].includes(room?.status?.status)).length;
+      const focusLimited = focusRooms.filter((room) =>
+        ["asr_unavailable", "ffmpeg_error", "error"].includes(room?.status?.status)
+      ).length;
+      const restrictionSince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const restrictionStats = getRecentRestrictionStats(context.db, restrictionSince);
+      writeJson(res, 200, {
+        time: new Date().toISOString(),
+        liveWorker: {
+          running: Boolean(liveStatus.running),
+          phase: liveStatus.phase || null,
+          ageSec: ageSecondsFromIso(liveStatus.time),
+          cycleDurationMs: liveStatus.cycleDurationMs || null,
+          error: liveStatus.error || null
+        },
+        messageWorker: {
+          running: Boolean(messageStatus.running),
+          phase: messageStatus.phase || null,
+          ageSec: ageSecondsFromIso(messageStatus.time),
+          rotatingCurrent: messageStatus.rotatingCurrent?.liveWebRid || null,
+          dedicatedCount: Number(messageStatus.dedicatedCount || 0)
+        },
+        focusMonitor: {
+          enabled: Boolean(focusState?.enabled),
+          monitoredCount: Number(focusState?.monitoredCount || 0),
+          okCount: focusOk,
+          offlineCount: focusOffline,
+          limitedCount: focusLimited
+        },
+        restrictionLast10m: restrictionStats
+      });
+      return;
+    }
+
     if (path === "/api/focus/targets") {
       writeJson(res, 200, {
         count: context.focusMonitor.listTargets().length,
@@ -921,6 +1066,7 @@ function createAppServer(context) {
 function main() {
   const context = createServerContext();
   context.focusMonitor.start();
+  const stopHealthMonitor = startSystemHealthMonitor(context);
   const server = createAppServer(context);
   server.listen(config.server.port, config.server.host, () => {
     logger.info("API 服务已启动", {
@@ -930,6 +1076,11 @@ function main() {
   });
 
   const graceful = () => {
+    try {
+      stopHealthMonitor();
+    } catch (error) {
+      // ignore
+    }
     try {
       context.focusMonitor.stop();
     } catch (error) {

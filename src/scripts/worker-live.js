@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const logger = require("../logger");
 const config = require("../config");
 const { bootstrapProject } = require("../services/bootstrap-service");
@@ -11,6 +13,30 @@ const REQUIRED_CYCLE_INTERVAL_SEC = Math.max(
   5,
   Number(config.scheduler.liveSampleIntervalSec || 20)
 );
+const statusFile = path.join(config.paths.runtimeDir, "live-worker-status.json");
+
+function writeLiveWorkerStatus(snapshot) {
+  try {
+    fs.writeFileSync(
+      statusFile,
+      JSON.stringify(
+        {
+          time: new Date().toISOString(),
+          pid: process.pid,
+          running: true,
+          ...snapshot
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+  } catch (error) {
+    logger.warn("直播采样 worker 状态写入失败", {
+      error: error.message
+    });
+  }
+}
 
 function writeDerivedMessages(context, result) {
   if (result.status !== "ok") {
@@ -60,15 +86,31 @@ function sleep(ms) {
 async function runSingleCycle(context, departmentCursorState) {
   const results = await sampleLiveTargetsByDepartment(context.db, context.targets, departmentCursorState);
   const okCount = results.filter((item) => item.status === "ok").length;
+  const restrictedCount = results.filter((item) => item.status === "restricted").length;
+  const skippedCount = results.filter((item) => item.status === "skipped").length;
   const errorCount = results.filter((item) => item.status === "error").length;
   const sampledDepartments = new Set(results.map((item) => item?.target?.department).filter(Boolean)).size;
   const derivedCount = results.reduce((acc, item) => acc + writeDerivedMessages(context, item), 0);
-  logger.info("直播采样轮次完成", {
+  return {
     total: results.length,
     sampledDepartments,
-    ok: okCount,
-    error: errorCount,
-    derivedMessages: derivedCount
+    okCount,
+    restrictedCount,
+    skippedCount,
+    errorCount,
+    derivedCount
+  };
+}
+
+function logCycleSummary(summary) {
+  logger.info("直播采样轮次完成", {
+    total: summary.total,
+    sampledDepartments: summary.sampledDepartments,
+    ok: summary.okCount,
+    restricted: summary.restrictedCount,
+    skipped: summary.skippedCount,
+    error: summary.errorCount,
+    derivedMessages: summary.derivedCount
   });
 }
 
@@ -80,13 +122,52 @@ async function startLoop() {
     intervalSec: REQUIRED_CYCLE_INTERVAL_SEC,
     liveDepartmentCount
   });
+  writeLiveWorkerStatus({
+    phase: "started",
+    intervalSec: REQUIRED_CYCLE_INTERVAL_SEC,
+    liveDepartmentCount,
+    cycle: null
+  });
+
+  const markStopped = (reason) => {
+    writeLiveWorkerStatus({
+      running: false,
+      phase: "stopped",
+      reason,
+      intervalSec: REQUIRED_CYCLE_INTERVAL_SEC,
+      liveDepartmentCount
+    });
+  };
+  process.on("SIGINT", () => {
+    markStopped("sigint");
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    markStopped("sigterm");
+    process.exit(0);
+  });
 
   while (true) {
     const startedAt = Date.now();
     try {
-      await runSingleCycle(context, departmentCursorState);
+      const cycle = await runSingleCycle(context, departmentCursorState);
+      logCycleSummary(cycle);
+      writeLiveWorkerStatus({
+        phase: "cycle_done",
+        intervalSec: REQUIRED_CYCLE_INTERVAL_SEC,
+        liveDepartmentCount,
+        cycleDurationMs: Date.now() - startedAt,
+        cycle
+      });
     } catch (error) {
       logger.error("直播采样轮次异常", {
+        error: error.message
+      });
+      writeLiveWorkerStatus({
+        phase: "cycle_error",
+        intervalSec: REQUIRED_CYCLE_INTERVAL_SEC,
+        liveDepartmentCount,
+        cycleDurationMs: Date.now() - startedAt,
         error: error.message
       });
     }
