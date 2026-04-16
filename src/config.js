@@ -39,6 +39,18 @@ function readNumber(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function readTextFileIfExists(filePath) {
+  if (!filePath) {
+    return "";
+  }
+  try {
+    const value = fs.readFileSync(filePath, "utf8").trim();
+    return value;
+  } catch (error) {
+    return "";
+  }
+}
+
 const rootDir = path.join(__dirname, "..");
 loadDotEnv(rootDir);
 
@@ -76,7 +88,9 @@ module.exports = {
     sourceProjectPath:
       process.env.DOUYIN_SPIDER_PATH || path.join(rootDir, "..", "DouYin_Spider"),
     scriptPath: path.join(rootDir, "src", "bridges", "douyin_live_bridge.py"),
-    dyLiveCookies: process.env.DY_LIVE_COOKIES || ""
+    dyLiveCookies:
+      process.env.DY_LIVE_COOKIES ||
+      readTextFileIfExists(process.env.DY_LIVE_COOKIES_FILE || "")
   },
   authProbe: {
     userInfoUrl: process.env.DY_USER_INFO_URL || "",
