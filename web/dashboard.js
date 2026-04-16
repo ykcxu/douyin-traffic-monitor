@@ -581,6 +581,12 @@ function renderFocusTargets() {
   if (!checklist || !deptSelect) {
     return;
   }
+  const monitoredStatusMap = new Map(
+    (focusState.status?.monitoredRooms || []).map((item) => [
+      String(item?.liveWebRid || ""),
+      item?.status || {}
+    ])
+  );
   const serverMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
   const draft = Array.isArray(focusState.draftMonitored) ? focusState.draftMonitored : [];
   const activeMonitored = draft.length ? draft : serverMonitored;
@@ -588,12 +594,35 @@ function renderFocusTargets() {
 
   checklist.innerHTML = "";
   for (const item of focusState.targets || []) {
+    const roomStatus = monitoredStatusMap.get(String(item.liveWebRid)) || {};
+    const statusCode = String(roomStatus.status || "").trim();
+    const detailText = String(roomStatus.detail || "").toLowerCase();
+    let statusClass = "focus-room-neutral";
+    let statusLabel = "未监控";
+    if (statusCode === "offline" || statusCode === "live_no_stream") {
+      statusClass = "focus-room-offline";
+      statusLabel = "离线";
+    } else if (
+      statusCode === "asr_unavailable" ||
+      statusCode === "ffmpeg_error" ||
+      statusCode === "error" ||
+      detailText.includes("restricted") ||
+      detailText.includes("captcha") ||
+      detailText.includes("风控") ||
+      detailText.includes("受限")
+    ) {
+      statusClass = "focus-room-limited";
+      statusLabel = "受限";
+    } else if (statusCode === "ok" || statusCode === "booting") {
+      statusClass = "focus-room-ok";
+      statusLabel = "正常";
+    }
     const row = document.createElement("div");
-    row.className = "keyword-room-item";
+    row.className = `keyword-room-item ${statusClass}`;
     row.innerHTML = `
       <label class="focus-check-item">
         <input type="checkbox" class="focus-room-checkbox" data-department="${escapeHtml(item.department || "")}" value="${escapeHtml(item.liveWebRid)}" ${monitored.has(item.liveWebRid) ? "checked" : ""} />
-        <span>${escapeHtml(item.accountName)}（${escapeHtml(item.department || "未分组")}）</span>
+        <span>${escapeHtml(item.accountName)}（${escapeHtml(item.department || "未分组")}）<span class="focus-room-status-text">[${escapeHtml(statusLabel)}]</span></span>
       </label>
     `;
     checklist.appendChild(row);
