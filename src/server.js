@@ -6,6 +6,8 @@ const config = require("./config");
 const { bootstrapProject } = require("./services/bootstrap-service");
 const { buildDepartmentComparison, buildCompetitorComparison } = require("./services/analysis-service");
 const { buildDepartmentComparisonView, buildInternalVsCompetitorView } = require("./services/comparison-service");
+const { buildDailyInsights } = require("./services/insight-service");
+const { getAuthDiagnostics } = require("./services/auth-diagnostics-service");
 const {
   listRecentRoomSnapshots,
   listLatestSnapshotByAccount
@@ -79,9 +81,10 @@ function createServerContext() {
 function createAppServer(context) {
   const webDir = pathModule.join(config.paths.rootDir, "web");
 
-  return http.createServer((req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
-    const path = url.pathname;
+  return http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+      const path = url.pathname;
 
     if (path === "/health") {
       writeJson(res, 200, {
@@ -153,6 +156,18 @@ function createAppServer(context) {
       return;
     }
 
+    if (path === "/api/insights/daily") {
+      const payload = buildDailyInsights(context.db);
+      writeJson(res, 200, payload);
+      return;
+    }
+
+    if (path === "/api/auth/status") {
+      const payload = await getAuthDiagnostics();
+      writeJson(res, 200, payload);
+      return;
+    }
+
     if (path === "/api/logs/recent") {
       const limit = Number(url.searchParams.get("limit") || "100");
       const rows = readRecentLogs(Number.isFinite(limit) ? limit : 100);
@@ -163,10 +178,19 @@ function createAppServer(context) {
       return;
     }
 
-    writeJson(res, 404, {
-      error: "not_found",
-      path
-    });
+      writeJson(res, 404, {
+        error: "not_found",
+        path
+      });
+    } catch (error) {
+      logger.error("API 请求处理失败", {
+        error: error.message,
+        path: req.url
+      });
+      writeJson(res, 500, {
+        error: "internal_error"
+      });
+    }
   });
 }
 

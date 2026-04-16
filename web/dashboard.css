@@ -190,6 +190,19 @@ th {
   gap: 8px;
 }
 
+.auth-status {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.insight-list {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
 .keyword-chip {
   border-radius: 999px;
   padding: 4px 10px;

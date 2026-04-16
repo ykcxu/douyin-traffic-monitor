@@ -47,5 +47,9 @@ module.exports = {
       process.env.DOUYIN_SPIDER_PATH || path.join(rootDir, "..", "DouYin_Spider"),
     scriptPath: path.join(rootDir, "src", "bridges", "douyin_live_bridge.py"),
     dyLiveCookies: process.env.DY_LIVE_COOKIES || ""
+  },
+  authProbe: {
+    userInfoUrl: process.env.DY_USER_INFO_URL || "",
+    settingUrl: process.env.DY_WEBCAST_SETTING_URL || ""
   }
 };

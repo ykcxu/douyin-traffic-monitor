@@ -42,6 +42,12 @@ npm run worker:live
 npm run worker:messages
 ```
 
+执行鉴权诊断（检查 Cookie / user-info / setting 链路）：
+
+```bash
+npm run probe:auth
+```
+
 初始化本地数据库：
 
 ```bash
@@ -104,6 +110,8 @@ npm test
   - `PYTHON_BIN`
   - `DOUYIN_SPIDER_PATH`
   - `DY_LIVE_COOKIES`
+  - `DY_USER_INFO_URL`
+  - `DY_WEBCAST_SETTING_URL`
 
 ## 当前已落地能力
 
@@ -127,12 +135,15 @@ npm test
 - `GET /api/compare/departments`
 - `GET /api/compare/internal-vs-competitor`
 - `GET /api/messages/recent?limit=50`
+- `GET /api/insights/daily`
+- `GET /api/auth/status`
 
 ## 无 Cookie 模式说明
 
 - 未配置 `DY_LIVE_COOKIES` 时，`worker:messages` 不会启动（保护行为）
 - 这时仍可通过 `worker:live` 产出派生消息（在线人数变化、点赞变化、开播状态变化）
 - 看板和 `/api/messages/recent` 会优先显示这些派生消息，保证分析链路不断
+- 可额外配置 `DY_USER_INFO_URL`、`DY_WEBCAST_SETTING_URL`，在看板显示当前鉴权可用性诊断
 
 ## 数据安全
 

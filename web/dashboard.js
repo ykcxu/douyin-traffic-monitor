@@ -187,6 +187,54 @@ function renderLogs(payload) {
   }
 }
 
+function renderAuthStatus(payload) {
+  const el = document.getElementById("auth-status");
+  if (!el) {
+    return;
+  }
+
+  const modeLabel = payload.collectMode === "cookie"
+    ? "完整 Cookie 模式（可抓实时弹幕）"
+    : payload.collectMode === "guest_probe"
+      ? "游客探测模式（可采样，弹幕能力受限）"
+      : "受限模式（建议补充完整 Cookie）";
+
+  const userInfoShape = payload?.userInfoUrl?.probe?.payloadShape || "-";
+  const settingShape = payload?.settingUrl?.probe?.payloadShape || "-";
+
+  el.innerHTML = `
+    <div><span class="tag">${modeLabel}</span></div>
+    <div>user/info: ${userInfoShape}</div>
+    <div>webcast/setting: ${settingShape}</div>
+  `;
+}
+
+function renderInsights(payload) {
+  const peaksEl = document.getElementById("insight-peaks");
+  const suggestionEl = document.getElementById("insight-suggestions");
+  if (!peaksEl || !suggestionEl) {
+    return;
+  }
+
+  const peaks = payload.peaks || [];
+  if (peaks.length === 0) {
+    peaksEl.textContent = "高峰时段：暂无数据";
+  } else {
+    const text = peaks
+      .map((item) => `${item.hour}（均值 ${item.avgOnline}，峰值 ${item.peakOnline}）`)
+      .join("；");
+    peaksEl.textContent = `高峰时段：${text}`;
+  }
+
+  const suggestions = payload.suggestions || [];
+  if (suggestions.length === 0) {
+    suggestionEl.textContent = "话术建议：暂无";
+    return;
+  }
+
+  suggestionEl.innerHTML = suggestions.map((item) => `<div>• ${item}</div>`).join("");
+}
+
 function resetAutoRefresh() {
   if (refreshTimer) {
     clearInterval(refreshTimer);
@@ -204,13 +252,15 @@ function resetAutoRefresh() {
 
 async function refresh() {
   try {
-    const [summary, snapshots, dept, category, messages, logs] = await Promise.all([
+    const [summary, snapshots, dept, category, messages, logs, insights, authStatus] = await Promise.all([
       getJson("/api/summary"),
       getJson("/api/snapshots/recent?limit=20"),
       getJson("/api/compare/departments"),
       getJson("/api/compare/internal-vs-competitor"),
       getJson("/api/messages/recent?limit=50"),
-      getJson("/api/logs/recent?limit=100")
+      getJson("/api/logs/recent?limit=100"),
+      getJson("/api/insights/daily"),
+      getJson("/api/auth/status")
     ]);
 
     fillMetrics(summary, snapshots, messages);
@@ -221,6 +271,8 @@ async function refresh() {
     renderMessageMetrics(messages);
     renderKeywordCloud(messages);
     renderLogs(logs);
+    renderInsights(insights);
+    renderAuthStatus(authStatus);
     document.getElementById("refresh-time").textContent = `最近刷新：${new Date().toLocaleString()}`;
   } catch (error) {
     document.getElementById("refresh-time").textContent = `刷新失败：${error.message}`;

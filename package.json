@@ -13,6 +13,7 @@
     "sample:live": "node src/scripts/sample-live.js",
     "worker:live": "node src/scripts/worker-live.js",
     "worker:messages": "node src/scripts/worker-messages.js",
+    "probe:auth": "node src/scripts/probe-auth.js",
     "test": "node --test"
   },
   "keywords": [
