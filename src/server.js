@@ -73,10 +73,14 @@ function createServerContext() {
   const boot = bootstrapProject();
   const baselineDepartment = buildDepartmentComparison(boot.targets);
   const baselineCompetitor = buildCompetitorComparison(boot.targets);
+  const challengePageUrl =
+    boot.targets.find((item) => item.liveRoomUrl && String(item.liveRoomUrl).trim())?.liveRoomUrl ||
+    "https://live.douyin.com/";
   return {
     ...boot,
     baselineDepartment,
-    baselineCompetitor
+    baselineCompetitor,
+    challengePageUrl
   };
 }
 
@@ -173,7 +177,8 @@ function createAppServer(context) {
         ...payload,
         recentWindowStart: windowStart,
         restrictionStats,
-        messageWorker: workerStatus
+        messageWorker: workerStatus,
+        challengePageUrl: context.challengePageUrl
       });
       return;
     }

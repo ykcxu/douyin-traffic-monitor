@@ -22,6 +22,7 @@ async function postJson(path, body = {}) {
 }
 
 let refreshTimer = null;
+let challengePageUrl = "https://live.douyin.com/";
 
 function fmtTime(value) {
   if (!value) {
@@ -221,6 +222,7 @@ function renderAuthStatus(payload) {
   const restricted = payload?.restrictionStats?.restricted || 0;
   const sampled = payload?.restrictionStats?.total || 0;
   const workerRunning = payload?.messageWorker?.running ? "运行中" : "未运行";
+  challengePageUrl = payload?.challengePageUrl || "https://live.douyin.com/";
 
   el.innerHTML = `
     <div><span class="tag">${modeLabel}</span></div>
@@ -322,6 +324,10 @@ async function triggerAuthRecover() {
   }
 }
 
+function openChallengePage() {
+  window.open(challengePageUrl, "_blank", "noopener");
+}
+
 for (const tab of document.querySelectorAll(".tab")) {
   tab.addEventListener("click", () => activateTab(tab.dataset.tab));
 }
@@ -330,6 +336,7 @@ document.getElementById("auto-refresh").addEventListener("change", resetAutoRefr
 document.getElementById("refresh-interval").addEventListener("change", resetAutoRefresh);
 document.getElementById("refresh-now").addEventListener("click", refresh);
 document.getElementById("auth-recover").addEventListener("click", triggerAuthRecover);
+document.getElementById("auth-open-challenge").addEventListener("click", openChallengePage);
 
 refresh();
 resetAutoRefresh();
