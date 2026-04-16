@@ -22,9 +22,10 @@ body {
 }
 
 .page {
-  max-width: 1280px;
+  max-width: none;
+  width: 100%;
   margin: 0 auto;
-  padding: 24px 16px 40px;
+  padding: 24px 20px 40px;
 }
 
 .hero {
@@ -380,6 +381,10 @@ th {
 
 .focus-room-checklist-horizontal {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.focus-full {
+  grid-column: 1 / -1;
 }
 
 .keyword-room-title {

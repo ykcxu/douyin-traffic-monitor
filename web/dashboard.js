@@ -50,7 +50,8 @@ const focusState = {
   config: null,
   status: null,
   transcripts: [],
-  draftMonitored: []
+  draftMonitored: [],
+  transcriptVisibleRids: []
 };
 
 function fmtTime(value) {
@@ -576,8 +577,8 @@ function renderDedicatedRooms(payload) {
 
 function renderFocusTargets() {
   const checklist = document.getElementById("focus-room-checklist");
-  const displaySelect = document.getElementById("focus-transcript-select");
-  if (!checklist || !displaySelect) {
+  const deptSelect = document.getElementById("focus-department-select");
+  if (!checklist || !deptSelect) {
     return;
   }
   const serverMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
@@ -591,28 +592,36 @@ function renderFocusTargets() {
     row.className = "keyword-room-item";
     row.innerHTML = `
       <label class="focus-check-item">
-        <input type="checkbox" class="focus-room-checkbox" value="${escapeHtml(item.liveWebRid)}" ${monitored.has(item.liveWebRid) ? "checked" : ""} />
+        <input type="checkbox" class="focus-room-checkbox" data-department="${escapeHtml(item.department || "")}" value="${escapeHtml(item.liveWebRid)}" ${monitored.has(item.liveWebRid) ? "checked" : ""} />
         <span>${escapeHtml(item.accountName)}（${escapeHtml(item.department || "未分组")}）</span>
       </label>
     `;
     checklist.appendChild(row);
   }
 
-  const selected = String(focusState.config?.selectedLiveWebRid || "");
-  displaySelect.innerHTML = `<option value="">请选择</option>`;
-  for (const rid of new Set(serverMonitored)) {
-    const item = (focusState.targets || []).find((t) => t.liveWebRid === rid);
-    if (!item) {
-      continue;
-    }
+  const uniqueDepartments = Array.from(new Set((focusState.targets || []).map((item) => String(item.department || "").trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const prevDept = String(deptSelect.value || "");
+  deptSelect.innerHTML = `<option value="">请选择学科</option>`;
+  for (const dep of uniqueDepartments) {
     const option = document.createElement("option");
-    option.value = rid;
-    option.textContent = `${item.accountName}（${item.department || "未分组"}）`;
-    displaySelect.appendChild(option);
+    option.value = dep;
+    option.textContent = dep;
+    deptSelect.appendChild(option);
   }
-  if (selected) {
-    displaySelect.value = selected;
+  if (prevDept && uniqueDepartments.includes(prevDept)) {
+    deptSelect.value = prevDept;
   }
+
+  const selectAll = document.getElementById("focus-select-all");
+  if (selectAll) {
+    const allChecks = [...document.querySelectorAll(".focus-room-checkbox")];
+    const checkedCount = allChecks.filter((item) => item.checked).length;
+    selectAll.checked = allChecks.length > 0 && checkedCount === allChecks.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < allChecks.length;
+  }
+
+  renderFocusTranscriptRoomFilters(serverMonitored);
 }
 
 function renderFocusStatus() {
@@ -622,19 +631,50 @@ function renderFocusStatus() {
   }
   const conf = focusState.config || {};
   const st = focusState.status || {};
-  const selectedRid = conf.selectedLiveWebRid || "";
   const monitoredCount = (conf.monitoredLiveWebRids || []).length;
-  const selectedRoom = (focusState.targets || []).find((item) => item.liveWebRid === selectedRid);
-  const selectedState = (st.monitoredRooms || []).find((item) => item.liveWebRid === selectedRid);
+  const statuses = st.monitoredRooms || [];
+  const okCount = statuses.filter((item) => item?.status?.status === "ok").length;
   statusEl.innerHTML = `
     <div>监控房间数：${monitoredCount}</div>
     <div>监控开关：${conf.enabled ? "已开启" : "已关闭"}</div>
-    <div>当前展示：${selectedRoom ? selectedRoom.accountName : "未选择"}</div>
-    <div>当前状态：${selectedState?.status?.status || "idle"}</div>
-    <div>文档路径：${selectedState?.transcriptFile || "-"}</div>
-    <div>音频目录：${selectedState?.audioDir || "-"}</div>
+    <div>可用转写房间：${okCount}/${monitoredCount}</div>
     <div>最近更新时间：${fmtTime(st.updatedAt || conf.updatedAt || new Date().toISOString())}</div>
   `;
+}
+
+function renderFocusTranscriptRoomFilters(serverMonitored = []) {
+  const filterWrap = document.getElementById("focus-transcript-room-filters");
+  if (!filterWrap) {
+    return;
+  }
+  const monitoredSet = new Set((serverMonitored || []).map((item) => String(item)));
+  const targetByRid = new Map((focusState.targets || []).map((item) => [String(item.liveWebRid), item]));
+  const existingVisible = new Set((focusState.transcriptVisibleRids || []).map((item) => String(item)));
+  const nextVisible = [];
+  for (const rid of monitoredSet) {
+    if (existingVisible.size === 0 || existingVisible.has(rid)) {
+      nextVisible.push(rid);
+    }
+  }
+  focusState.transcriptVisibleRids = nextVisible;
+
+  filterWrap.innerHTML = "";
+  if (!monitoredSet.size) {
+    filterWrap.innerHTML = `<div style="color:#6a7898;font-size:12px;">暂无已监控直播间文档</div>`;
+    return;
+  }
+  for (const rid of monitoredSet) {
+    const item = targetByRid.get(rid);
+    const row = document.createElement("div");
+    row.className = "keyword-room-item";
+    row.innerHTML = `
+      <label class="focus-check-item">
+        <input type="checkbox" class="focus-transcript-room-checkbox" value="${escapeHtml(rid)}" ${focusState.transcriptVisibleRids.includes(rid) ? "checked" : ""} />
+        <span>${escapeHtml(item?.accountName || rid)}</span>
+      </label>
+    `;
+    filterWrap.appendChild(row);
+  }
 }
 
 function renderFocusTranscripts() {
@@ -643,7 +683,17 @@ function renderFocusTranscripts() {
     return;
   }
   list.innerHTML = "";
-  const rows = focusState.transcripts || [];
+  const visible = new Set((focusState.transcriptVisibleRids || []).map((item) => String(item)));
+  const rows = (focusState.transcripts || []).filter((row) => {
+    const rid = String(row.liveWebRid || "").trim();
+    if (!rid) {
+      return true;
+    }
+    if (!visible.size) {
+      return true;
+    }
+    return visible.has(rid);
+  });
   const enabled = Boolean(focusState?.config?.enabled);
   if (!rows.length) {
     const li = document.createElement("li");
@@ -686,12 +736,16 @@ async function refreshFocusPanel() {
     if (!Array.isArray(focusState.draftMonitored) || !focusState.draftMonitored.length) {
       focusState.draftMonitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item));
     }
-    const currentRid =
-      String(focusState.config?.selectedLiveWebRid || "").trim() ||
-      String((focusState.config?.monitoredLiveWebRids || [])[0] || "").trim();
-    if (currentRid) {
-      const transcripts = await getJson(`/api/focus/transcripts?limit=120&liveWebRid=${encodeURIComponent(currentRid)}`);
-      focusState.transcripts = transcripts?.rows || [];
+    const monitored = (focusState.config?.monitoredLiveWebRids || []).map((item) => String(item)).filter(Boolean);
+    if (monitored.length) {
+      const transcriptResponses = await Promise.all(
+        monitored.map((rid) => getJson(`/api/focus/transcripts?limit=80&liveWebRid=${encodeURIComponent(rid)}`))
+      );
+      const mergedRows = transcriptResponses
+        .flatMap((item) => item?.rows || [])
+        .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime())
+        .slice(0, 360);
+      focusState.transcripts = mergedRows;
     } else {
       focusState.transcripts = [];
     }
@@ -1134,19 +1188,64 @@ document.getElementById("focus-room-checklist").addEventListener("change", () =>
   focusState.draftMonitored = [...document.querySelectorAll(".focus-room-checkbox:checked")]
     .map((el) => String(el.value || "").trim())
     .filter(Boolean);
+  const selectAll = document.getElementById("focus-select-all");
+  if (selectAll) {
+    const allChecks = [...document.querySelectorAll(".focus-room-checkbox")];
+    const checkedCount = allChecks.filter((item) => item.checked).length;
+    selectAll.checked = allChecks.length > 0 && checkedCount === allChecks.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < allChecks.length;
+  }
 });
-document.getElementById("focus-start-btn").addEventListener("click", async () => {
+document.getElementById("focus-select-all").addEventListener("change", (event) => {
+  const checked = Boolean(event.target.checked);
+  const allChecks = [...document.querySelectorAll(".focus-room-checkbox")];
+  for (const box of allChecks) {
+    box.checked = checked;
+  }
+  focusState.draftMonitored = checked ? allChecks.map((item) => String(item.value || "").trim()).filter(Boolean) : [];
+  event.target.indeterminate = false;
+});
+document.getElementById("focus-clear-all-btn").addEventListener("click", () => {
+  const allChecks = [...document.querySelectorAll(".focus-room-checkbox")];
+  for (const box of allChecks) {
+    box.checked = false;
+  }
+  focusState.draftMonitored = [];
+  const selectAll = document.getElementById("focus-select-all");
+  if (selectAll) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+  }
+});
+document.getElementById("focus-apply-department-btn").addEventListener("click", () => {
+  const dep = String(document.getElementById("focus-department-select")?.value || "").trim();
+  if (!dep) {
+    return;
+  }
+  const allChecks = [...document.querySelectorAll(".focus-room-checkbox")];
+  for (const box of allChecks) {
+    box.checked = String(box.getAttribute("data-department") || "").trim() === dep;
+  }
+  focusState.draftMonitored = allChecks.filter((item) => item.checked).map((item) => String(item.value || "").trim()).filter(Boolean);
+  const selectAll = document.getElementById("focus-select-all");
+  if (selectAll) {
+    const checkedCount = allChecks.filter((item) => item.checked).length;
+    selectAll.checked = allChecks.length > 0 && checkedCount === allChecks.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < allChecks.length;
+  }
+});
+document.getElementById("focus-refresh-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("focus-status");
   const checked = [...document.querySelectorAll(".focus-room-checkbox:checked")].map((el) => String(el.value || "").trim()).filter(Boolean);
   if (!checked.length) {
     if (statusEl) {
-      statusEl.textContent = "请先勾选至少一个直播间，再点击“开始监控”。";
+      statusEl.textContent = "请先勾选至少一个直播间，再点击“刷新监控列表”。";
     }
     return;
   }
   try {
     if (statusEl) {
-      statusEl.textContent = "正在启动重点直播间监控...";
+      statusEl.textContent = "正在刷新重点监控列表...";
     }
     await postJson("/api/focus/monitor-set", {
       liveWebRids: checked,
@@ -1155,11 +1254,11 @@ document.getElementById("focus-start-btn").addEventListener("click", async () =>
     focusState.draftMonitored = [...checked];
     await refreshFocusPanel();
     if (statusEl) {
-      statusEl.textContent = `已开始监控 ${checked.length} 个直播间。`;
+      statusEl.textContent = `已刷新监控列表：${checked.length} 个直播间。`;
     }
   } catch (error) {
     if (statusEl) {
-      statusEl.textContent = `启动重点监控失败：${error.message}`;
+      statusEl.textContent = `刷新监控列表失败：${error.message}`;
     }
   }
 });
@@ -1184,22 +1283,11 @@ document.getElementById("focus-stop-btn").addEventListener("click", async () => 
     }
   }
 });
-document.getElementById("focus-transcript-select").addEventListener("change", async (event) => {
-  const liveWebRid = String(event.target.value || "").trim();
-  if (!liveWebRid) {
-    return;
-  }
-  try {
-    await postJson("/api/focus/display-select", {
-      liveWebRid
-    });
-    await refreshFocusPanel();
-  } catch (error) {
-    const statusEl = document.getElementById("focus-status");
-    if (statusEl) {
-      statusEl.textContent = `切换展示直播间失败：${error.message}`;
-    }
-  }
+document.getElementById("focus-transcript-room-filters").addEventListener("change", () => {
+  focusState.transcriptVisibleRids = [...document.querySelectorAll(".focus-transcript-room-checkbox:checked")]
+    .map((el) => String(el.value || "").trim())
+    .filter(Boolean);
+  renderFocusTranscripts();
 });
 
 if (focusRefreshTimer) {

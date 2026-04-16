@@ -200,28 +200,33 @@
 
       <section id="tab-focus" class="tab-pane">
         <section class="grid">
-          <article class="card">
+          <article class="card focus-full">
             <h2>重点直播间话术监控</h2>
             <div class="log-flow-filters" style="margin-bottom:8px;">
-              <button id="focus-start-btn" type="button">开始监控</button>
+              <button id="focus-refresh-btn" type="button">刷新监控列表</button>
               <button id="focus-stop-btn" type="button">停止监控</button>
+              <label style="display:inline-flex;align-items:center;gap:6px;">
+                <input id="focus-select-all" type="checkbox" />
+                <span>全选</span>
+              </label>
+              <button id="focus-clear-all-btn" type="button">全取消</button>
+              <label>按学科
+                <select id="focus-department-select">
+                  <option value="">请选择学科</option>
+                </select>
+              </label>
+              <button id="focus-apply-department-btn" type="button">按学科选择</button>
             </div>
             <div id="focus-room-checklist" class="keyword-room-list focus-room-checklist-horizontal" style="max-height:260px;"></div>
             <div id="focus-status" class="auth-status">初始化中...</div>
           </article>
         </section>
         <section class="grid">
-          <article class="card">
+          <article class="card focus-full">
             <div class="log-flow-header">
               <h2>实时话术转写（允许延迟）</h2>
-              <div class="log-flow-filters">
-                <label>展示文档
-                  <select id="focus-transcript-select">
-                    <option value="">请选择</option>
-                  </select>
-                </label>
-              </div>
             </div>
+            <div id="focus-transcript-room-filters" class="keyword-room-list focus-room-checklist-horizontal" style="max-height:160px;margin-bottom:8px;"></div>
             <ul id="focus-transcript-list" class="log-list"></ul>
           </article>
         </section>
