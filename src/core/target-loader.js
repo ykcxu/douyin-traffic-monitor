@@ -1,7 +1,7 @@
 const fs = require("fs");
-const path = require("path");
 const config = require("../config");
 const { readJson } = require("../utils/fs");
+const { normalizeTargets } = require("./target-normalizer");
 
 function resolveTargetsFile() {
   const privateFilePath = config.paths.targetsFile;
@@ -18,7 +18,7 @@ function loadTargets() {
   const filePath = resolveTargetsFile();
   return {
     filePath,
-    targets: readJson(filePath)
+    targets: normalizeTargets(readJson(filePath))
   };
 }
 

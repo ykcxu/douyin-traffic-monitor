@@ -30,6 +30,12 @@ npm run db:init
 npm run report:daily
 ```
 
+执行一次直播间页面采样：
+
+```bash
+npm run sample:live
+```
+
 运行本地 smoke tests：
 
 ```bash
@@ -51,6 +57,7 @@ npm test
 - `src/core/target-loader.js`：监控目标加载与汇总
 - `src/db/`：SQLite 初始化、Schema、Repository
 - `src/services/`：启动、分析、报告生成逻辑
+- `src/services/live-sample-service.js`：直播间页面采样与快照落库
 - `src/tasks/`：采样和分析任务注册表
 - `src/scripts/`：建库、生成日报等命令行脚本
 - `storage/app.db`：本地 SQLite 数据库文件

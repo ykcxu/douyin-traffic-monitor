@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "db:init": "node src/scripts/init-db.js",
     "report:daily": "node src/scripts/run-daily-report.js",
+    "sample:live": "node src/scripts/sample-live.js",
     "test": "node --test"
   },
   "keywords": [
