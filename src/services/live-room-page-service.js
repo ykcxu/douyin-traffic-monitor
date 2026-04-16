@@ -1,3 +1,5 @@
+const config = require("../config");
+
 const htmlUnescapeMap = {
   '\\"': '"',
   "\\\\": "\\",
@@ -24,6 +26,31 @@ function toNumber(value) {
 
   const parsed = Number(String(value).replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseCount(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const text = String(value).trim().replace(/,/g, "");
+  if (!text) {
+    return null;
+  }
+
+  const unit = text.slice(-1);
+  const base = Number(unit === "万" || unit === "亿" ? text.slice(0, -1) : text);
+  if (!Number.isFinite(base)) {
+    return null;
+  }
+
+  if (unit === "万") {
+    return Math.round(base * 10000);
+  }
+  if (unit === "亿") {
+    return Math.round(base * 100000000);
+  }
+  return Math.round(base);
 }
 
 function parseRoomStateFromHtml(html, liveWebRid) {
@@ -83,17 +110,102 @@ async function fetchLiveRoomPage(liveWebRid) {
   };
 }
 
+async function fetchLiveRoomStateViaApi(liveWebRid) {
+  if (!config.bridge.dyLiveCookies) {
+    throw new LiveRoomFetchError("missing_cookie", "dy live cookies not configured");
+  }
+
+  const query = new URLSearchParams({
+    aid: "6383",
+    app_name: "douyin_web",
+    live_id: "1",
+    device_platform: "web",
+    enter_from: "web_live",
+    web_rid: liveWebRid
+  });
+  const url = `https://live.douyin.com/webcast/room/web/enter/?${query.toString()}`;
+
+  const response = await fetch(url, {
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+      accept: "application/json, text/plain, */*",
+      "accept-language": "zh-CN,zh;q=0.9",
+      cookie: config.bridge.dyLiveCookies,
+      referer: `https://live.douyin.com/${liveWebRid}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new LiveRoomFetchError("api_http_error", `web enter api failed: ${response.status}`);
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new LiveRoomFetchError("api_json_error", error.message);
+  }
+
+  if (payload?.status_code !== 0) {
+    throw new LiveRoomFetchError("api_status_error", `status_code=${payload?.status_code}`);
+  }
+
+  const room = payload?.data?.data?.[0];
+  if (!room) {
+    throw new LiveRoomFetchError("api_room_empty", "missing room data");
+  }
+
+  const status = Number(room.status);
+  const userCountText = room.user_count_str || room?.stats?.user_count_str || null;
+  const likeCountText = room.like_count || room?.stats?.like_count || null;
+
+  return {
+    liveWebRid,
+    roomId: room.id_str || null,
+    userId: room?.owner?.id_str || room?.owner?.id || null,
+    ownerUserId: room.owner_user_id_str || null,
+    title: room.title || null,
+    status: Number.isFinite(status) ? status : null,
+    statusText: status === 2 ? "live" : status === 4 ? "offline" : "unknown",
+    userCountText: userCountText ? String(userCountText) : null,
+    userCount: parseCount(userCountText),
+    likeCount: parseCount(likeCountText),
+    fetchedAt: new Date().toISOString(),
+    ttwidCookie: null,
+    rawHtmlLength: null,
+    source: "webcast_room_enter_api"
+  };
+}
+
 async function fetchLiveRoomState(liveWebRid) {
+  try {
+    return await fetchLiveRoomStateViaApi(liveWebRid);
+  } catch (apiError) {
+    if (apiError instanceof LiveRoomFetchError) {
+      const fallbackAllowedCodes = new Set([
+        "missing_cookie",
+        "api_http_error",
+        "api_json_error",
+        "api_status_error",
+        "api_room_empty"
+      ]);
+      if (!fallbackAllowedCodes.has(apiError.code)) {
+        throw apiError;
+      }
+    }
+  }
+
   const { html, ttwidCookie } = await fetchLiveRoomPage(liveWebRid);
   const state = parseRoomStateFromHtml(html, liveWebRid);
   if (!state.roomId && state.status === null && html.length < 20000) {
     throw new LiveRoomFetchError("content_unavailable", "live room content unavailable");
   }
-
   return {
     ...state,
     ttwidCookie,
-    rawHtmlLength: html.length
+    rawHtmlLength: html.length,
+    source: "live_room_page"
   };
 }
 

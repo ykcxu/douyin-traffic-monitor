@@ -69,7 +69,8 @@ async function sampleSingleLiveTarget(db, target) {
       ownerUserId: liveState.ownerUserId,
       userCountText: liveState.userCountText,
       rawHtmlLength: liveState.rawHtmlLength,
-      ttwidCookie: liveState.ttwidCookie
+      ttwidCookie: liveState.ttwidCookie,
+      source: liveState.source || "unknown"
     }
   };
 

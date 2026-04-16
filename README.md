@@ -146,6 +146,7 @@ npm test
 - 这时仍可通过 `worker:live` 产出派生消息（在线人数变化、点赞变化、开播状态变化）
 - 看板和 `/api/messages/recent` 会优先显示这些派生消息，保证分析链路不断
 - 可额外配置 `DY_USER_INFO_URL`、`DY_WEBCAST_SETTING_URL`，在看板显示当前鉴权可用性诊断
+- 配置 `DY_LIVE_COOKIES`（或 `DY_LIVE_COOKIES_FILE`）后，直播采样会优先走 `webcast/room/web/enter` 接口，显著降低验证码受限概率
 
 ## 验证码受限恢复（合规）
 
