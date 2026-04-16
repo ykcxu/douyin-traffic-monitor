@@ -156,12 +156,31 @@ function summarizeInternalVsCompetitorFromSnapshots(db) {
     .all();
 }
 
+function listDepartmentLiveAveragesByBucket(db, sinceIso, bucketSeconds = 60) {
+  const safeBucketSeconds = Number.isFinite(bucketSeconds) && bucketSeconds > 0 ? Math.floor(bucketSeconds) : 60;
+  return db
+    .prepare(
+      `
+      SELECT
+        department,
+        datetime(CAST(CAST(strftime('%s', sample_time) AS INTEGER) / ? AS INTEGER) * ?, 'unixepoch') AS bucketTime,
+        AVG(CASE WHEN is_live = 1 THEN COALESCE(online_count, 0) END) AS avgOnlineLive
+      FROM room_snapshots
+      WHERE sample_time >= ?
+      GROUP BY department, bucketTime
+      ORDER BY bucketTime ASC, department ASC
+    `
+    )
+    .all(safeBucketSeconds, safeBucketSeconds, sinceIso);
+}
+
 module.exports = {
   insertRoomSnapshot,
   listRecentRoomSnapshots,
   listRecentSnapshotsByAccountName,
   listLatestSnapshotByAccount,
   getRecentRestrictionStats,
+  listDepartmentLiveAveragesByBucket,
   summarizeByDepartmentFromSnapshots,
   summarizeInternalVsCompetitorFromSnapshots
 };

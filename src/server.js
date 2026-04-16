@@ -6,6 +6,7 @@ const config = require("./config");
 const { bootstrapProject } = require("./services/bootstrap-service");
 const { buildDepartmentComparison, buildCompetitorComparison } = require("./services/analysis-service");
 const { buildDepartmentComparisonView, buildInternalVsCompetitorView } = require("./services/comparison-service");
+const { buildDepartmentLiveAvgSeries } = require("./services/chart-service");
 const { buildDailyInsights } = require("./services/insight-service");
 const { getAuthDiagnostics } = require("./services/auth-diagnostics-service");
 const { startMessageWorkerIfNeeded, isMessageWorkerRunning } = require("./services/message-worker-supervisor");
@@ -194,6 +195,18 @@ function createAppServer(context) {
 
     if (path === "/api/insights/daily") {
       const payload = buildDailyInsights(context.db);
+      writeJson(res, 200, payload);
+      return;
+    }
+
+    if (path === "/api/charts/department-live-avg") {
+      const minutes = Number(url.searchParams.get("minutes") || "30");
+      const bucketSeconds = Number(url.searchParams.get("bucketSeconds") || "60");
+      const departments = (context.baselineDepartment || []).map((item) => item.department);
+      const payload = buildDepartmentLiveAvgSeries(context.db, departments, {
+        minutes,
+        bucketSeconds
+      });
       writeJson(res, 200, payload);
       return;
     }

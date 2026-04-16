@@ -23,6 +23,14 @@ async function postJson(path, body = {}) {
 
 let refreshTimer = null;
 let challengePageUrl = "https://live.douyin.com/";
+const trendPalette = ["#0a4ad6", "#00a76f", "#ff7a00", "#8a52ff", "#ff4d6d", "#00a6ff", "#7f8c3a", "#b85c38"];
+const trendState = {
+  labels: [],
+  departments: [],
+  series: {},
+  currentPayload: null,
+  frameId: null
+};
 
 function fmtTime(value) {
   if (!value) {
@@ -30,6 +38,212 @@ function fmtTime(value) {
   }
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+}
+
+function pickTrendColor(index) {
+  return trendPalette[index % trendPalette.length];
+}
+
+function fmtLabelMinute(iso) {
+  if (!iso) {
+    return "";
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return iso.slice(11, 16);
+  }
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function normalizeTrendData(payload) {
+  const labels = (payload?.points || []).map((point) => point.bucketTime);
+  const departments = payload?.departments || [];
+  const series = {};
+  for (const dep of departments) {
+    series[dep] = labels.map((_, idx) => payload.points[idx]?.values?.[dep] ?? null);
+  }
+  return { labels, departments, series };
+}
+
+function renderTrendLegend(departments) {
+  const legend = document.getElementById("department-trend-legend");
+  if (!legend) {
+    return;
+  }
+  legend.innerHTML = "";
+  for (const [idx, department] of departments.entries()) {
+    const item = document.createElement("div");
+    item.className = "trend-legend-item";
+    const dot = document.createElement("span");
+    dot.className = "trend-legend-dot";
+    dot.style.backgroundColor = pickTrendColor(idx);
+    const text = document.createElement("span");
+    text.textContent = department;
+    item.appendChild(dot);
+    item.appendChild(text);
+    legend.appendChild(item);
+  }
+}
+
+function buildPolylinePath(values, getX, getY) {
+  let path = "";
+  let started = false;
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i];
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+      started = false;
+      continue;
+    }
+    const x = getX(i);
+    const y = getY(Number(value));
+    if (!started) {
+      path += `M ${x.toFixed(2)} ${y.toFixed(2)} `;
+      started = true;
+    } else {
+      path += `L ${x.toFixed(2)} ${y.toFixed(2)} `;
+    }
+  }
+  return path.trim();
+}
+
+function renderDepartmentTrendFrame(departments, labels, prevSeries, nextSeries, progress, shiftSteps) {
+  const container = document.getElementById("department-trend-chart");
+  if (!container) {
+    return;
+  }
+  const width = 980;
+  const height = 280;
+  const padLeft = 44;
+  const padRight = 16;
+  const padTop = 16;
+  const padBottom = 34;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+  const p = Math.max(0, Math.min(1, progress));
+
+  const allValues = [];
+  for (const dep of departments) {
+    for (const value of nextSeries[dep] || []) {
+      if (Number.isFinite(Number(value))) {
+        allValues.push(Number(value));
+      }
+    }
+  }
+  const maxValue = allValues.length ? Math.max(...allValues) : 10;
+  const yMax = Math.max(10, Math.ceil(maxValue * 1.15));
+  const yStep = yMax / 4;
+
+  const xShift = shiftSteps > 0 ? p * shiftSteps : 0;
+  const getX = (index) => padLeft + ((index - xShift) / Math.max(1, labels.length - 1)) * plotW;
+  const getY = (value) => padTop + plotH - (Math.max(0, value) / yMax) * plotH;
+
+  const lines = [];
+  for (let i = 0; i <= 4; i += 1) {
+    const value = i * yStep;
+    const y = getY(value);
+    lines.push(`<line x1="${padLeft}" y1="${y.toFixed(2)}" x2="${(padLeft + plotW).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#edf2fb" stroke-width="1" />`);
+    lines.push(`<text x="${padLeft - 6}" y="${(y + 4).toFixed(2)}" text-anchor="end" fill="#8aa0c2" font-size="11">${Math.round(value)}</text>`);
+  }
+
+  const tickStep = Math.max(1, Math.floor(labels.length / 6));
+  for (let i = 0; i < labels.length; i += tickStep) {
+    const x = getX(i);
+    if (x < padLeft || x > padLeft + plotW) {
+      continue;
+    }
+    lines.push(`<line x1="${x.toFixed(2)}" y1="${(padTop + plotH).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(padTop + plotH + 4).toFixed(2)}" stroke="#b9c9e5" stroke-width="1" />`);
+    lines.push(`<text x="${x.toFixed(2)}" y="${(height - 10).toFixed(2)}" text-anchor="middle" fill="#8aa0c2" font-size="11">${fmtLabelMinute(labels[i])}</text>`);
+  }
+
+  const paths = [];
+  for (const [depIndex, department] of departments.entries()) {
+    const currentValues = (nextSeries[department] || []).map((nextVal, i) => {
+      const alignedPrevIndex = Math.min(
+        (prevSeries[department] || []).length - 1,
+        Math.max(0, i + shiftSteps)
+      );
+      const prevVal = (prevSeries[department] || [])[alignedPrevIndex];
+      if (Number.isFinite(Number(prevVal)) && Number.isFinite(Number(nextVal))) {
+        return Number(prevVal) + (Number(nextVal) - Number(prevVal)) * p;
+      }
+      if (Number.isFinite(Number(nextVal))) {
+        return Number(nextVal);
+      }
+      if (Number.isFinite(Number(prevVal))) {
+        return Number(prevVal);
+      }
+      return null;
+    });
+
+    const d = buildPolylinePath(currentValues, getX, getY);
+    if (!d) {
+      continue;
+    }
+    paths.push(
+      `<path d="${d}" fill="none" stroke="${pickTrendColor(depIndex)}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />`
+    );
+  }
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="近30分钟各学科在播平均人次折线图">
+      <rect x="${padLeft}" y="${padTop}" width="${plotW}" height="${plotH}" fill="#fcfdff" stroke="#eef3fb" />
+      ${lines.join("")}
+      ${paths.join("")}
+    </svg>
+  `;
+}
+
+function renderDepartmentTrend(payload) {
+  const normalized = normalizeTrendData(payload);
+  const { labels, departments, series } = normalized;
+  const container = document.getElementById("department-trend-chart");
+  if (!container) {
+    return;
+  }
+
+  if (!labels.length || !departments.length) {
+    container.innerHTML = `<div style="color:#6a7898;padding:24px 8px;">暂无图表数据（等待采样后自动生成）</div>`;
+    renderTrendLegend([]);
+    trendState.labels = labels;
+    trendState.departments = departments;
+    trendState.series = series;
+    trendState.currentPayload = payload;
+    return;
+  }
+
+  renderTrendLegend(departments);
+  const previousLabels = trendState.labels || [];
+  const previousSeries = trendState.series || {};
+  const shiftSteps =
+    previousLabels.length === labels.length &&
+    previousLabels.length >= 2 &&
+    previousLabels.slice(1).join("|") === labels.slice(0, -1).join("|")
+      ? 1
+      : 0;
+
+  const fromSeries = previousLabels.length ? previousSeries : series;
+  const duration = 900;
+  const start = performance.now();
+  if (trendState.frameId) {
+    cancelAnimationFrame(trendState.frameId);
+    trendState.frameId = null;
+  }
+
+  const frame = (now) => {
+    const p = Math.min(1, (now - start) / duration);
+    renderDepartmentTrendFrame(departments, labels, fromSeries, series, p, shiftSteps);
+    if (p < 1) {
+      trendState.frameId = requestAnimationFrame(frame);
+      return;
+    }
+    trendState.frameId = null;
+  };
+
+  trendState.labels = labels;
+  trendState.departments = departments;
+  trendState.series = series;
+  trendState.currentPayload = payload;
+  trendState.frameId = requestAnimationFrame(frame);
 }
 
 function activateTab(tabName) {
@@ -339,7 +553,8 @@ async function refresh() {
       "/api/messages/recent?limit=50",
       "/api/logs/recent?limit=100",
       "/api/insights/daily",
-      "/api/auth/status"
+      "/api/auth/status",
+      "/api/charts/department-live-avg?minutes=30&bucketSeconds=60"
     ];
     const result = await Promise.allSettled(endpoints.map((item) => getJson(item)));
     const pick = (index, fallback) => (result[index]?.status === "fulfilled" ? result[index].value : fallback);
@@ -352,6 +567,7 @@ async function refresh() {
     const logs = pick(5, { count: 0, rows: [] });
     const insights = pick(6, { peaks: [], suggestions: [] });
     const authStatus = pick(7, {});
+    const departmentTrend = pick(8, { points: [], departments: [] });
 
     fillMetrics(summary, snapshots, messages);
     renderDepartmentTable(dept);
@@ -362,6 +578,7 @@ async function refresh() {
     renderKeywordCloud(messages);
     renderLogs(logs);
     renderInsights(insights);
+    renderDepartmentTrend(departmentTrend);
     if (authStatus && Object.keys(authStatus).length > 0) {
       renderAuthStatus(authStatus);
     }
