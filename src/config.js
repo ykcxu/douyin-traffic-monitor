@@ -17,6 +17,10 @@ module.exports = {
     name: "douyin-traffic-monitor",
     env: process.env.NODE_ENV || "development"
   },
+  server: {
+    host: process.env.HOST || "127.0.0.1",
+    port: readNumber("PORT", 3000)
+  },
   paths: {
     rootDir,
     dataDir: path.join(rootDir, "data"),
@@ -30,6 +34,7 @@ module.exports = {
   scheduler: {
     liveSampleIntervalSec: readNumber("LIVE_SAMPLE_INTERVAL_SEC", 30),
     profileSampleIntervalSec: readNumber("PROFILE_SAMPLE_INTERVAL_SEC", 3600),
-    analysisIntervalSec: readNumber("ANALYSIS_INTERVAL_SEC", 300)
+    analysisIntervalSec: readNumber("ANALYSIS_INTERVAL_SEC", 300),
+    liveSampleBatchSize: readNumber("LIVE_SAMPLE_BATCH_SIZE", 5)
   }
 };

@@ -56,7 +56,87 @@ function listRecentRoomSnapshots(db, limit = 10) {
     .all(limit);
 }
 
+function listLatestSnapshotByAccount(db) {
+  return db
+    .prepare(`
+      SELECT
+        s.room_id AS roomId,
+        s.account_uid AS accountUid,
+        s.account_name AS accountName,
+        s.category,
+        s.department,
+        s.sample_time AS sampleTime,
+        s.is_live AS isLive,
+        s.online_count AS onlineCount,
+        s.like_count AS likeCount
+      FROM room_snapshots s
+      INNER JOIN (
+        SELECT account_name, MAX(id) AS max_id
+        FROM room_snapshots
+        GROUP BY account_name
+      ) latest
+      ON latest.max_id = s.id
+      ORDER BY s.id DESC
+    `)
+    .all();
+}
+
+function summarizeByDepartmentFromSnapshots(db) {
+  return db
+    .prepare(`
+      SELECT
+        department,
+        COUNT(*) AS sampledRooms,
+        SUM(CASE WHEN is_live = 1 THEN 1 ELSE 0 END) AS liveRooms,
+        AVG(COALESCE(online_count, 0)) AS avgOnlineCount,
+        MAX(COALESCE(online_count, 0)) AS peakOnlineCount,
+        AVG(COALESCE(like_count, 0)) AS avgLikeCount
+      FROM (
+        SELECT s.*
+        FROM room_snapshots s
+        INNER JOIN (
+          SELECT account_name, MAX(id) AS max_id
+          FROM room_snapshots
+          GROUP BY account_name
+        ) latest
+        ON latest.max_id = s.id
+      )
+      GROUP BY department
+      ORDER BY department
+    `)
+    .all();
+}
+
+function summarizeInternalVsCompetitorFromSnapshots(db) {
+  return db
+    .prepare(`
+      SELECT
+        category,
+        COUNT(*) AS sampledRooms,
+        SUM(CASE WHEN is_live = 1 THEN 1 ELSE 0 END) AS liveRooms,
+        AVG(COALESCE(online_count, 0)) AS avgOnlineCount,
+        MAX(COALESCE(online_count, 0)) AS peakOnlineCount,
+        AVG(COALESCE(like_count, 0)) AS avgLikeCount
+      FROM (
+        SELECT s.*
+        FROM room_snapshots s
+        INNER JOIN (
+          SELECT account_name, MAX(id) AS max_id
+          FROM room_snapshots
+          GROUP BY account_name
+        ) latest
+        ON latest.max_id = s.id
+      )
+      GROUP BY category
+      ORDER BY category
+    `)
+    .all();
+}
+
 module.exports = {
   insertRoomSnapshot,
-  listRecentRoomSnapshots
+  listRecentRoomSnapshots,
+  listLatestSnapshotByAccount,
+  summarizeByDepartmentFromSnapshots,
+  summarizeInternalVsCompetitorFromSnapshots
 };

@@ -18,6 +18,18 @@ npm install
 npm start
 ```
 
+启动本地 API 服务：
+
+```bash
+npm run serve
+```
+
+启动直播采样 worker（循环采样）：
+
+```bash
+npm run worker:live
+```
+
 初始化本地数据库：
 
 ```bash
@@ -58,6 +70,7 @@ npm test
 - `src/db/`：SQLite 初始化、Schema、Repository
 - `src/services/`：启动、分析、报告生成逻辑
 - `src/services/live-sample-service.js`：直播间页面采样与快照落库
+- `src/services/comparison-service.js`：学科与竞品对比聚合输出
 - `src/tasks/`：采样和分析任务注册表
 - `src/scripts/`：建库、生成日报等命令行脚本
 - `storage/app.db`：本地 SQLite 数据库文件
@@ -67,7 +80,10 @@ npm test
 
 - 复制 `.env.example` 中的变量到你的本地环境即可
 - 当前支持：
+  - `HOST`
+  - `PORT`
   - `LIVE_SAMPLE_INTERVAL_SEC`
+  - `LIVE_SAMPLE_BATCH_SIZE`
   - `PROFILE_SAMPLE_INTERVAL_SEC`
   - `ANALYSIS_INTERVAL_SEC`
 
@@ -80,6 +96,8 @@ npm test
 - 每日话术建议占位生成
 - 高峰时段占位生成
 - 本地日志输出
+- 本地 API 对比接口（学科对比、内部 vs 竞品）
+- 循环采样 worker
 
 ## 数据安全
 
