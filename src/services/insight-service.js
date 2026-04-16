@@ -16,7 +16,15 @@ function extractKeywords(text) {
 
 function buildDailyInsights(db) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const stopWords = new Set(["在线人数变化", "点赞数变化", "直播状态变更", "进入直播间", "关注主播"]);
+  const stopWords = new Set([
+    "在线人数变化",
+    "点赞数变化",
+    "直播状态变更",
+    "进入直播间",
+    "关注主播",
+    "开播",
+    "下播"
+  ]);
 
   const hourlyRows = db
     .prepare(
@@ -92,8 +100,9 @@ function buildDailyInsights(db) {
 
   const suggestions = [];
   if (topKeywords.length > 0) {
-    const topWords = topKeywords.slice(0, 3).map((item) => item.word).join("、");
-    suggestions.push(`高频提问集中在：${topWords}。建议把这 3 个问题前置到开场 3 分钟口播。`);
+    const selected = topKeywords.slice(0, 3).map((item) => item.word);
+    const topWords = selected.join("、");
+    suggestions.push(`高频提问集中在：${topWords}。建议把这 ${selected.length} 个问题前置到开场 3 分钟口播。`);
   } else {
     suggestions.push("当前弹幕样本偏少，建议先稳定开播时长并增加提问互动，累积 1-2 天后再优化话术。");
   }
