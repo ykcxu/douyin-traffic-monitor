@@ -2,6 +2,7 @@ const config = require("../config");
 const { ensureDir } = require("../utils/fs");
 const { initDatabase } = require("../db/database");
 const { loadTargets, summarizeTargets } = require("../core/target-loader");
+const { normalizeTargets } = require("../core/target-normalizer");
 const { replaceTargets } = require("../db/repositories/target-repository");
 const logger = require("../logger");
 
@@ -11,9 +12,10 @@ function bootstrapProject() {
 
   const db = initDatabase();
   const { filePath, targets } = loadTargets();
-  replaceTargets(db, targets);
+  const normalizedTargets = normalizeTargets(targets);
+  replaceTargets(db, normalizedTargets);
 
-  const summary = summarizeTargets(targets);
+  const summary = summarizeTargets(normalizedTargets);
   logger.info("项目启动初始化完成", {
     filePath,
     targetCount: summary.total
@@ -22,7 +24,7 @@ function bootstrapProject() {
   return {
     db,
     filePath,
-    targets,
+    targets: normalizedTargets,
     summary
   };
 }

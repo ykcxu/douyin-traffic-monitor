@@ -74,15 +74,21 @@ module.exports = {
     targetsExampleFile: path.join(rootDir, "data", "monitor-targets.example.json")
   },
   scheduler: {
-    liveSampleIntervalSec: readNumber("LIVE_SAMPLE_INTERVAL_SEC", 30),
+    liveSampleIntervalSec: readNumber("LIVE_SAMPLE_INTERVAL_SEC", 20),
     profileSampleIntervalSec: readNumber("PROFILE_SAMPLE_INTERVAL_SEC", 3600),
     analysisIntervalSec: readNumber("ANALYSIS_INTERVAL_SEC", 300),
     liveSampleBatchSize: readNumber("LIVE_SAMPLE_BATCH_SIZE", 12)
   },
   messages: {
     roomLimit: readNumber("MESSAGE_MONITOR_ROOM_LIMIT", 1),
+    roomStaySec: readNumber("MESSAGE_ROOM_STAY_SEC", 30),
     bridgeDurationSec: readNumber("MESSAGE_BRIDGE_DURATION_SEC", 0),
-    apiPollIntervalSec: readNumber("MESSAGE_API_POLL_INTERVAL_SEC", 8)
+    apiPollIntervalSec: readNumber("MESSAGE_API_POLL_INTERVAL_SEC", 5),
+    hotRoomEnterChatPerWindow: readNumber("MESSAGE_HOT_ENTER_CHAT_PER_WINDOW", 15),
+    hotRoomMissedEstimateThreshold: readNumber("MESSAGE_HOT_MISSED_ESTIMATE_THRESHOLD", 10),
+    hotRoomExitChatPerMin: readNumber("MESSAGE_HOT_EXIT_CHAT_PER_MIN", 5),
+    hotRoomExitLowStreak: readNumber("MESSAGE_HOT_EXIT_LOW_STREAK", 3),
+    hotRoomMaxDedicatedRooms: readNumber("MESSAGE_HOT_MAX_DEDICATED_ROOMS", 4)
   },
   bridge: {
     pythonBin: process.env.PYTHON_BIN || "python",
@@ -96,5 +102,13 @@ module.exports = {
   authProbe: {
     userInfoUrl: process.env.DY_USER_INFO_URL || "",
     settingUrl: process.env.DY_WEBCAST_SETTING_URL || ""
+  },
+  focusSpeech: {
+    segmentSec: readNumber("FOCUS_SEGMENT_SEC", 20),
+    pollIntervalSec: readNumber("FOCUS_POLL_INTERVAL_SEC", 6),
+    transcriptsKeep: readNumber("FOCUS_TRANSCRIPTS_KEEP", 300),
+    asrCommand: process.env.FOCUS_ASR_COMMAND || "",
+    asrModel: process.env.FOCUS_ASR_MODEL || "gpt-4o-mini-transcribe",
+    openaiApiKey: process.env.OPENAI_API_KEY || ""
   }
 };

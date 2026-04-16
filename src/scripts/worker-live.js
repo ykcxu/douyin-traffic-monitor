@@ -1,4 +1,5 @@
 const logger = require("../logger");
+const config = require("../config");
 const { bootstrapProject } = require("../services/bootstrap-service");
 const { sampleLiveTargetsByDepartment } = require("../services/live-sample-service");
 const { normalizeTargets } = require("../core/target-normalizer");
@@ -6,7 +7,10 @@ const { insertLiveMessage } = require("../db/repositories/message-repository");
 const { listRecentSnapshotsByAccountName } = require("../db/repositories/snapshot-repository");
 const { buildDerivedMessagesFromSnapshots } = require("../services/derived-message-service");
 
-const REQUIRED_CYCLE_INTERVAL_SEC = 30;
+const REQUIRED_CYCLE_INTERVAL_SEC = Math.max(
+  5,
+  Number(config.scheduler.liveSampleIntervalSec || 20)
+);
 
 function writeDerivedMessages(context, result) {
   if (result.status !== "ok") {

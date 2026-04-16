@@ -8,3 +8,5 @@ Thumbs.db
 data/monitor-targets.json
 data/runtime/
 storage/
+__pycache__/
+*.pyc

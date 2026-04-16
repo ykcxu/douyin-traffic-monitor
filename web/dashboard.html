@@ -30,6 +30,7 @@
       <nav class="tabs">
         <button type="button" class="tab active" data-tab="overview">概览</button>
         <button type="button" class="tab" data-tab="danmu">弹幕情况</button>
+        <button type="button" class="tab" data-tab="focus">重点话术</button>
         <button type="button" class="tab" data-tab="logs">实时日志</button>
       </nav>
 
@@ -63,7 +64,8 @@
             <div id="auth-status" class="auth-status">检测中...</div>
           </article>
           <article class="card">
-            <h2>今日洞察（近 24h）</h2>
+            <h2>今日洞察（今日）</h2>
+            <div id="insight-updated-at" style="color:#6a7898;font-size:12px;margin-bottom:8px;">更新时间：-（每30分钟）</div>
             <div id="insight-peaks" class="insight-list"></div>
             <div id="insight-suggestions" class="insight-list"></div>
           </article>
@@ -134,27 +136,31 @@
       <section id="tab-danmu" class="tab-pane">
         <section class="grid top-grid">
           <article class="card metric">
-            <h2>聊天消息</h2>
+            <h2>今日聊天消息</h2>
             <p id="metric-chat">-</p>
           </article>
           <article class="card metric">
-            <h2>点赞/礼物</h2>
-            <p id="metric-interact">-</p>
+            <h2>弹幕最多前三直播间</h2>
+            <p id="metric-interact" class="metric-text">-</p>
           </article>
           <article class="card metric">
-            <h2>派生信号</h2>
-            <p id="metric-derived">-</p>
+            <h2>今日前三关键词（全直播间）</h2>
+            <p id="metric-derived" class="metric-text">-</p>
           </article>
         </section>
 
         <section class="grid">
-          <article class="card">
-            <h2>高频关键词（最近 50 条）</h2>
-            <div id="keyword-cloud" class="keyword-cloud"></div>
+          <article class="card danmu-keyword-full">
+            <h2>弹幕高峰单开线程监控（实时）</h2>
+            <div id="dedicated-rooms-updated" style="color:#6a7898;font-size:12px;margin-bottom:8px;">更新时间：-</div>
+            <ul id="dedicated-room-list" class="log-list"></ul>
           </article>
-          <article class="card">
-            <h2>最近消息流</h2>
-            <ul id="message-list" class="message-list"></ul>
+        </section>
+
+        <section class="grid">
+          <article class="card danmu-keyword-card danmu-keyword-full">
+            <h2>今日直播间高频关键词（每个前 5）</h2>
+            <div id="keyword-room-list" class="keyword-room-list"></div>
           </article>
         </section>
       </section>
@@ -162,8 +168,56 @@
       <section id="tab-logs" class="tab-pane">
         <section class="grid">
           <article class="card">
+            <div class="log-flow-header">
+              <h2>消息流（今日）</h2>
+              <div class="log-flow-filters">
+                <label>消息类型
+                  <select id="log-message-type-filter">
+                    <option value="chat" selected>仅弹幕聊天</option>
+                    <option value="all">全部消息</option>
+                    <option value="like">点赞</option>
+                    <option value="gift">礼物</option>
+                    <option value="member">进场</option>
+                    <option value="room_stats">房间状态</option>
+                    <option value="derived">派生信号</option>
+                  </select>
+                </label>
+                <label>直播间
+                  <select id="log-message-room-filter">
+                    <option value="ALL">全部直播间</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <ul id="log-message-list" class="log-list"></ul>
+          </article>
+          <article class="card">
             <h2>实时日志（最近 100 条）</h2>
             <ul id="log-list" class="log-list"></ul>
+          </article>
+        </section>
+      </section>
+
+      <section id="tab-focus" class="tab-pane">
+        <section class="grid">
+          <article class="card">
+            <h2>重点直播间话术监控</h2>
+            <div class="log-flow-filters" style="margin-bottom:8px;">
+              <label>直播间
+                <select id="focus-room-select">
+                  <option value="">请选择直播间</option>
+                </select>
+              </label>
+              <button id="focus-select-btn" type="button">设为重点监控</button>
+              <button id="focus-toggle-btn" type="button">暂停监控</button>
+            </div>
+            <div id="focus-status" class="auth-status">初始化中...</div>
+          </article>
+        </section>
+        <section class="grid">
+          <article class="card">
+            <h2>实时话术转写（允许延迟）</h2>
+            <ul id="focus-transcript-list" class="log-list"></ul>
           </article>
         </section>
       </section>

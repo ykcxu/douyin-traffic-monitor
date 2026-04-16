@@ -13,8 +13,16 @@ import requests
 from websocket import WebSocketApp
 
 
+def configure_stdio():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except Exception:
+            pass
+
+
 def emit(payload):
-    print(json.dumps(payload, ensure_ascii=False), flush=True)
+    print(json.dumps(payload, ensure_ascii=True), flush=True)
 
 
 def utc_now_iso():
@@ -281,6 +289,18 @@ class LiveBridge:
         user_id = room_info["user_id"]
         ttwid = room_info["ttwid"]
         self.room_id = room_id
+        signature = ""
+        try:
+            signature = self.generate_signature(room_id, user_id) or ""
+        except Exception as error:
+            emit(
+                {
+                    "type": "bridge_error",
+                    "error": f"signature_generation_failed: {error}",
+                    "hint": "fallback_empty_signature",
+                    "liveId": self.args.live_id,
+                }
+            )
 
         params = self.Params()
         (params
@@ -313,7 +333,7 @@ class LiveBridge:
          .add_param("live_reason", "")
          .add_param("room_id", room_id)
          .add_param("heartbeatDuration", "0")
-         .add_param("signature", self.generate_signature(room_id, user_id)))
+         .add_param("signature", signature))
         wss_url = f"wss://webcast5-ws-web-lf.douyin.com/webcast/im/push/v2/?{urlencode(params.get())}"
 
         emit(
@@ -346,6 +366,7 @@ class LiveBridge:
 
 
 def main():
+    configure_stdio()
     args = parse_args()
 
     if not args.cookies:

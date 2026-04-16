@@ -198,6 +198,13 @@ body {
   font-weight: 700;
 }
 
+.metric p.metric-text {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #2d3f63;
+}
+
 .table-wrap {
   overflow: auto;
 }
@@ -254,6 +261,129 @@ th {
   gap: 8px;
 }
 
+.danmu-keyword-card {
+  grid-column: 1 / span 1;
+}
+
+.danmu-message-card {
+  grid-column: 2 / span 1;
+}
+
+.danmu-keyword-full {
+  grid-column: 1 / -1;
+}
+
+.danmu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.danmu-header label {
+  color: var(--muted);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.danmu-header select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.log-flow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.log-flow-filters {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.log-flow-filters label {
+  color: var(--muted);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-flow-filters select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.log-flow-filters button {
+  border: 1px solid #b8d0ff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #eef4ff;
+  color: #1a4ead;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 8px;
+  margin-left: 4px;
+  color: #1a4ead;
+  font-weight: 700;
+  animation: cursor-blink 1s steps(1, end) infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.keyword-room-list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.keyword-room-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.keyword-room-title {
+  font-weight: 700;
+  color: #204c92;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.keyword-room-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .auth-status {
   font-size: 14px;
   line-height: 1.6;
@@ -303,5 +433,20 @@ th {
   .grid,
   .top-grid {
     grid-template-columns: 1fr;
+  }
+
+  .danmu-keyword-card,
+  .danmu-message-card {
+    grid-column: 1 / -1;
+  }
+
+  .log-flow-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .danmu-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

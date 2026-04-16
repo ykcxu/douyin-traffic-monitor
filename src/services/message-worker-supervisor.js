@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { execSync } = require("child_process");
 const config = require("../config");
 const logger = require("../logger");
 
@@ -30,11 +31,57 @@ function isPidRunning(pid) {
   }
 }
 
+function findWorkerPidByProcessList() {
+  try {
+    if (process.platform === "win32") {
+      const cmd =
+        "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'worker-messages.js' } | Select-Object -First 1 -ExpandProperty ProcessId";
+      const output = execSync(`powershell -NoProfile -Command "${cmd}"`, {
+        stdio: ["ignore", "pipe", "ignore"]
+      })
+        .toString("utf8")
+        .trim();
+      const pid = Number(output);
+      return Number.isInteger(pid) && pid > 0 ? pid : null;
+    }
+
+    const output = execSync("pgrep -f worker-messages.js", {
+      stdio: ["ignore", "pipe", "ignore"]
+    })
+      .toString("utf8")
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => Number(line.trim()))
+      .find((pid) => Number.isInteger(pid) && pid > 0);
+    return output || null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function isMessageWorkerRunning() {
-  const pid = readPid();
+  const pidFromFile = readPid();
+  if (isPidRunning(pidFromFile)) {
+    return {
+      running: true,
+      pid: pidFromFile,
+      source: "pid_file"
+    };
+  }
+
+  const pidFromProcess = findWorkerPidByProcessList();
+  if (isPidRunning(pidFromProcess)) {
+    return {
+      running: true,
+      pid: pidFromProcess,
+      source: "process_scan"
+    };
+  }
+
   return {
-    running: isPidRunning(pid),
-    pid
+    running: false,
+    pid: pidFromFile || null,
+    source: "none"
   };
 }
 
