@@ -8,9 +8,11 @@ const { buildDepartmentComparison, buildCompetitorComparison } = require("./serv
 const { buildDepartmentComparisonView, buildInternalVsCompetitorView } = require("./services/comparison-service");
 const { buildDailyInsights } = require("./services/insight-service");
 const { getAuthDiagnostics } = require("./services/auth-diagnostics-service");
+const { startMessageWorkerIfNeeded, isMessageWorkerRunning } = require("./services/message-worker-supervisor");
 const {
   listRecentRoomSnapshots,
-  listLatestSnapshotByAccount
+  listLatestSnapshotByAccount,
+  getRecentRestrictionStats
 } = require("./db/repositories/snapshot-repository");
 const { listRecentLiveMessages } = require("./db/repositories/message-repository");
 const logger = require("./logger");
@@ -164,7 +166,26 @@ function createAppServer(context) {
 
     if (path === "/api/auth/status") {
       const payload = await getAuthDiagnostics();
-      writeJson(res, 200, payload);
+      const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const restrictionStats = getRecentRestrictionStats(context.db, windowStart);
+      const workerStatus = isMessageWorkerRunning();
+      writeJson(res, 200, {
+        ...payload,
+        recentWindowStart: windowStart,
+        restrictionStats,
+        messageWorker: workerStatus
+      });
+      return;
+    }
+
+    if (path === "/api/auth/recover" && req.method === "POST") {
+      const diagnostics = await getAuthDiagnostics();
+      const recover = startMessageWorkerIfNeeded();
+      writeJson(res, 200, {
+        ok: true,
+        diagnostics,
+        recover
+      });
       return;
     }
 

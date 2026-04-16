@@ -137,6 +137,7 @@ npm test
 - `GET /api/messages/recent?limit=50`
 - `GET /api/insights/daily`
 - `GET /api/auth/status`
+- `POST /api/auth/recover`
 
 ## 无 Cookie 模式说明
 
@@ -144,6 +145,13 @@ npm test
 - 这时仍可通过 `worker:live` 产出派生消息（在线人数变化、点赞变化、开播状态变化）
 - 看板和 `/api/messages/recent` 会优先显示这些派生消息，保证分析链路不断
 - 可额外配置 `DY_USER_INFO_URL`、`DY_WEBCAST_SETTING_URL`，在看板显示当前鉴权可用性诊断
+
+## 验证码受限恢复（合规）
+
+- 系统检测到验证码后会自动标记为“受限”，不会误判为“离线”
+- 看板顶部会出现受限提示条
+- 先在浏览器手动完成验证码，再点击“我已通过验证码，立即重试”
+- 后端会触发 `POST /api/auth/recover`，自动尝试恢复消息 worker
 
 ## 数据安全
 

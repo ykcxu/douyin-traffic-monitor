@@ -6,6 +6,21 @@ async function getJson(path) {
   return response.json();
 }
 
+async function postJson(path, body = {}) {
+  const response = await fetch(path, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    throw new Error(`request failed: ${path} ${response.status}`);
+  }
+  return response.json();
+}
+
 let refreshTimer = null;
 
 function fmtTime(value) {
@@ -189,6 +204,8 @@ function renderLogs(payload) {
 
 function renderAuthStatus(payload) {
   const el = document.getElementById("auth-status");
+  const alertBox = document.getElementById("auth-alert");
+  const alertText = document.getElementById("auth-alert-text");
   if (!el) {
     return;
   }
@@ -201,12 +218,25 @@ function renderAuthStatus(payload) {
 
   const userInfoShape = payload?.userInfoUrl?.probe?.payloadShape || "-";
   const settingShape = payload?.settingUrl?.probe?.payloadShape || "-";
+  const restricted = payload?.restrictionStats?.restricted || 0;
+  const sampled = payload?.restrictionStats?.total || 0;
+  const workerRunning = payload?.messageWorker?.running ? "运行中" : "未运行";
 
   el.innerHTML = `
     <div><span class="tag">${modeLabel}</span></div>
     <div>user/info: ${userInfoShape}</div>
     <div>webcast/setting: ${settingShape}</div>
+    <div>近10分钟受限采样: ${restricted}/${sampled}</div>
+    <div>消息worker: ${workerRunning}</div>
   `;
+
+  if (payload.collectMode === "restricted" || restricted > 0) {
+    alertBox.classList.remove("hidden");
+    alertText.textContent = "检测到验证码/风控限制。请在浏览器手动完成验证后，点击右侧按钮自动重试恢复。";
+  } else {
+    alertBox.classList.add("hidden");
+    alertText.textContent = "";
+  }
 }
 
 function renderInsights(payload) {
@@ -279,6 +309,19 @@ async function refresh() {
   }
 }
 
+async function triggerAuthRecover() {
+  const timeEl = document.getElementById("refresh-time");
+  try {
+    const result = await postJson("/api/auth/recover", {});
+    const reason = result?.recover?.reason || "unknown";
+    const started = result?.recover?.started ? "已尝试启动消息 worker" : "未启动消息 worker";
+    timeEl.textContent = `恢复操作完成：${started}（${reason}）`;
+    await refresh();
+  } catch (error) {
+    timeEl.textContent = `恢复失败：${error.message}`;
+  }
+}
+
 for (const tab of document.querySelectorAll(".tab")) {
   tab.addEventListener("click", () => activateTab(tab.dataset.tab));
 }
@@ -286,6 +329,7 @@ for (const tab of document.querySelectorAll(".tab")) {
 document.getElementById("auto-refresh").addEventListener("change", resetAutoRefresh);
 document.getElementById("refresh-interval").addEventListener("change", resetAutoRefresh);
 document.getElementById("refresh-now").addEventListener("click", refresh);
+document.getElementById("auth-recover").addEventListener("click", triggerAuthRecover);
 
 refresh();
 resetAutoRefresh();

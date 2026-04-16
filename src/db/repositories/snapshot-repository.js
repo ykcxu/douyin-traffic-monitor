@@ -161,6 +161,32 @@ module.exports = {
   listRecentRoomSnapshots,
   listRecentSnapshotsByAccountName,
   listLatestSnapshotByAccount,
+  getRecentRestrictionStats,
   summarizeByDepartmentFromSnapshots,
   summarizeInternalVsCompetitorFromSnapshots
 };
+
+function getRecentRestrictionStats(db, sinceIso) {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS total,
+        SUM(
+          CASE
+            WHEN json_extract(raw_payload, '$.fetchStatus') = 'captcha_required'
+              OR json_extract(raw_payload, '$.statusText') = 'restricted'
+            THEN 1 ELSE 0
+          END
+        ) AS restricted
+      FROM room_snapshots
+      WHERE sample_time >= ?
+    `
+    )
+    .get(sinceIso);
+
+  return {
+    total: row?.total || 0,
+    restricted: row?.restricted || 0
+  };
+}

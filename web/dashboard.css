@@ -74,6 +74,33 @@ body {
   font-weight: 600;
 }
 
+.auth-alert {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 236, 222, 0.95);
+  color: #7a3e00;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.auth-alert button {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: #7a3e00;
+  color: #fff;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
