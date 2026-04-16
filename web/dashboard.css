@@ -217,6 +217,11 @@ th {
   color: var(--warn);
 }
 
+.tag.unknown {
+  background: #eceff5;
+  color: #5f6f89;
+}
+
 @media (max-width: 980px) {
   .grid,
   .top-grid {

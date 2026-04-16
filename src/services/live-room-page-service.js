@@ -5,6 +5,14 @@ const htmlUnescapeMap = {
   "\\n": "\n"
 };
 
+class LiveRoomFetchError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "LiveRoomFetchError";
+    this.code = code;
+  }
+}
+
 function unescapeInlineJson(value) {
   return value.replace(/\\"|\\\\|\\\/|\\n/g, (token) => htmlUnescapeMap[token] || token);
 }
@@ -61,6 +69,10 @@ async function fetchLiveRoomPage(liveWebRid) {
   }
 
   const html = await response.text();
+  if (html.includes("验证码中间页") || html.includes("sec_sdk_build") || html.includes("captcha/index.js")) {
+    throw new LiveRoomFetchError("captcha_required", "captcha page returned");
+  }
+
   const ttwidCookie = response.headers.getSetCookie
     ? response.headers.getSetCookie().find((item) => item.startsWith("ttwid=")) || null
     : response.headers.get("set-cookie");
@@ -74,6 +86,9 @@ async function fetchLiveRoomPage(liveWebRid) {
 async function fetchLiveRoomState(liveWebRid) {
   const { html, ttwidCookie } = await fetchLiveRoomPage(liveWebRid);
   const state = parseRoomStateFromHtml(html, liveWebRid);
+  if (!state.roomId && state.status === null && html.length < 20000) {
+    throw new LiveRoomFetchError("content_unavailable", "live room content unavailable");
+  }
 
   return {
     ...state,
@@ -85,5 +100,6 @@ async function fetchLiveRoomState(liveWebRid) {
 module.exports = {
   fetchLiveRoomPage,
   fetchLiveRoomState,
-  parseRoomStateFromHtml
+  parseRoomStateFromHtml,
+  LiveRoomFetchError
 };

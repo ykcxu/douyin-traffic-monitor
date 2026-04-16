@@ -84,8 +84,26 @@ function renderSnapshotTable(payload) {
   const tbody = document.querySelector("#snapshot-table tbody");
   tbody.innerHTML = "";
   for (const row of payload.rows || []) {
-    const statusClass = Number(row.isLive) === 1 ? "live" : "offline";
-    const statusText = Number(row.isLive) === 1 ? "在播" : "离线";
+    let raw = {};
+    try {
+      raw = typeof row.rawPayload === "string" ? JSON.parse(row.rawPayload) : row.rawPayload || {};
+    } catch (error) {
+      raw = {};
+    }
+
+    let statusClass = "offline";
+    let statusText = "离线";
+    if (raw.fetchStatus === "captcha_required" || raw.statusText === "restricted") {
+      statusClass = "unknown";
+      statusText = "受限";
+    } else if (Number(row.isLive) === 1) {
+      statusClass = "live";
+      statusText = "在播";
+    } else if (raw.statusText === "unknown") {
+      statusClass = "unknown";
+      statusText = "未知";
+    }
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(row.sampleTime)}</td>

@@ -48,7 +48,8 @@ function listRecentRoomSnapshots(db, limit = 10) {
         sample_time AS sampleTime,
         is_live AS isLive,
         online_count AS onlineCount,
-        like_count AS likeCount
+        like_count AS likeCount,
+        raw_payload AS rawPayload
       FROM room_snapshots
       ORDER BY id DESC
       LIMIT ?

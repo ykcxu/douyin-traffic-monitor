@@ -1,7 +1,7 @@
 const logger = require("../logger");
 const { normalizeTargets } = require("../core/target-normalizer");
 const { insertRoomSnapshot } = require("../db/repositories/snapshot-repository");
-const { fetchLiveRoomState } = require("./live-room-page-service");
+const { fetchLiveRoomState, LiveRoomFetchError } = require("./live-room-page-service");
 
 async function sampleSingleLiveTarget(db, target) {
   if (!target.liveWebRid) {
@@ -12,7 +12,44 @@ async function sampleSingleLiveTarget(db, target) {
     };
   }
 
-  const liveState = await fetchLiveRoomState(target.liveWebRid);
+  let liveState;
+  try {
+    liveState = await fetchLiveRoomState(target.liveWebRid);
+  } catch (error) {
+    if (
+      error instanceof LiveRoomFetchError &&
+      (error.code === "captcha_required" || error.code === "content_unavailable")
+    ) {
+      const snapshot = {
+        roomId: null,
+        accountUid: target.accountUid || null,
+        accountName: target.accountName,
+        category: target.category,
+        department: target.department,
+        sampleTime: new Date().toISOString(),
+        isLive: false,
+        onlineCount: null,
+        likeCount: null,
+        rawPayload: {
+          liveWebRid: target.liveWebRid,
+          fetchStatus: "captcha_required",
+          fetchCode: error.code,
+          statusText: "restricted"
+        }
+      };
+      insertRoomSnapshot(db, snapshot);
+      logger.warn("直播间采样受限（验证码）", {
+        accountName: target.accountName,
+        liveWebRid: target.liveWebRid
+      });
+      return {
+        status: "restricted",
+        target,
+        snapshot
+      };
+    }
+    throw error;
+  }
   const snapshot = {
     roomId: liveState.roomId,
     accountUid: target.accountUid || liveState.userId || null,
