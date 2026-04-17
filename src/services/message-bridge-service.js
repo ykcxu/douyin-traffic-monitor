@@ -29,7 +29,8 @@ function startBridgeForRoom(liveWebRid, handlers = {}) {
 
   const child = spawn(config.bridge.pythonBin, args, {
     cwd: config.paths.rootDir,
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true
   });
 
   child.stdout.setEncoding("utf8");

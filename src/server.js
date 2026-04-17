@@ -454,6 +454,7 @@ function createFocusMonitor(context) {
     return new Promise((resolve) => {
       const child = spawn(executable, args, {
         stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
         ...options
       });
       let stdout = "";
